@@ -23,16 +23,6 @@ This [flash Videocart](https://en.wikipedia.org/wiki/Flash_cartridge) allows gam
 
 # Getting Started
 
-To install games, simply drag and drop your **.bin** files onto an SD card*, and insert it into the flash Videocart.
-
-> *The SD card must be formatted as FAT32 
-
-Then you insert the flash Videocart into your Channel F as you would a normal Videocart, and select the game you want to play from the menu.
-
 # PCB
 
-This is currently in development
-
 # Videocart Case
-
-The Videocart case is 3D printed as three seperate pieces then assembled.
