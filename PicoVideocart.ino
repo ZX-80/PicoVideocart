@@ -1,37 +1,69 @@
+#include <hardware/structs/iobank0.h>
 #include "Videocart12.h"
 
 constexpr uint8_t WRITE_PIN = 17;
 constexpr uint8_t PHI_PIN = 26;
-constexpr uint8_t DBUS_PINS[8] = {6, 7, 8, 9, 10, 11, 12, 13}; //D0 - D7; Slow but useful for debugging
-constexpr uint8_t ROMC_PINS[5] = {18, 19, 20, 21, 22}; //ROMC0 - ROMC4; Slow but useful for debugging
+constexpr uint8_t DBUS0_PIN = 6;
+constexpr uint8_t ROMC0_PIN = 18;
 
 constexpr uint8_t DBUS_IN_CE_PIN = 15;
 constexpr uint8_t DBUS_OUT_CE_PIN = 14;
 
-uint32_t* SIO_BASE = 0xd0000000;
+constexpr uint8_t GPIO_INPUT = 0;
+constexpr uint8_t GPIO_OUTPUT = 1;
+
+inline void gpio_init(uint8_t pin, bool mode) __attribute__((always_inline));
+inline void gpio_init(uint8_t pin, bool mode) {
+    iobank0_hw -> io[pin].ctrl &= 0xFFE0;
+    iobank0_hw -> io[pin].ctrl |= ((2 + mode) << 12) + 5;
+}
+
+inline void gpio_set(uint8_t pin) __attribute__((always_inline));
+inline void gpio_set(uint8_t pin) {
+    sio_hw->gpio_set = 1 << pin;
+}
+
+inline void gpio_clear(uint8_t pin) __attribute__((always_inline));
+inline void gpio_clear(uint8_t pin) {
+    sio_hw->gpio_clr = 1 << pin;
+}
+
+inline bool gpio_in(uint8_t pin) __attribute__((always_inline));
+inline bool gpio_in(uint8_t pin) {
+    return (sio_hw->gpio_in >> pin) & 1;
+}
+
+inline uint8_t read_romc() __attribute__((always_inline));
+inline uint8_t read_romc() {
+    return (sio_hw->gpio_in >> ROMC0_PIN) & 0x1F;
+}
+
+inline uint8_t read_dbus() __attribute__((always_inline));
+inline uint8_t read_dbus() {
+    return (sio_hw->gpio_in >> DBUS0_PIN) & 0xFF;
+}
 
 void setup() {
     // Initialize cartridge pins
-    // SIO_BASE[10] = 0xFF << 6     // Place DBUS in input mode
     for (uint8_t i = 0; i < 8; i++) {
-        pinMode(DBUS_PINS[i], INPUT_PULLUP);
+        gpio_init(DBUS0_PIN + i, GPIO_INPUT);
+    }
+    for (uint8_t i = 0; i < 5; i++) {
+        gpio_init(ROMC0_PIN + i, GPIO_INPUT);
     }
     
-    // SIO_BASE[5] = 1 << DBUS_OUT_CE_PIN     // Set DBUS_OUT_CE_PIN
-    // SIO_BASE[9] = 1 << DBUS_OUT_CE_PIN     // Place DBUS_OUT_CE_PIN in output mode
-    digitalWrite(DBUS_OUT_CE_PIN, HIGH);
-    pinMode(DBUS_OUT_CE_PIN, OUTPUT);
+    gpio_init(WRITE_PIN, GPIO_INPUT);    
+    gpio_init(PHI_PIN, GPIO_INPUT);
     
-    // SIO_BASE[6] = 1 << DBUS_IN_CE_PIN     // Clear DBUS_IN_CE_PIN
-    // SIO_BASE[9] = 1 << DBUS_IN_CE_PIN     // Place DBUS_IN_CE_PIN in output mode
-    digitalWrite(DBUS_IN_CE_PIN, LOW);
-    pinMode(DBUS_IN_CE_PIN, OUTPUT);
+    gpio_init(DBUS_OUT_CE_PIN, GPIO_OUTPUT);
+    gpio_set(DBUS_OUT_CE_PIN);
+
+    gpio_init(DBUS_IN_CE_PIN, GPIO_OUTPUT);
+    gpio_clear(DBUS_IN_CE_PIN);
 
     // Use the LED for simple debugging
-    // SIO_BASE[5] = 1 << LED_BUILTIN     // Set LED_BUILTIN
-    // SIO_BASE[9] = 1 << LED_BUILTIN     // Place LED_BUILTIN in output mode
-    digitalWrite(LED_BUILTIN, HIGH);
-    pinMode(LED_BUILTIN, OUTPUT);
+    gpio_init(LED_BUILTIN, GPIO_OUTPUT);
+    gpio_set(LED_BUILTIN);
 
 }
 
@@ -66,25 +98,6 @@ void Program::write_byte(uint16_t address, uint8_t data) {
 Program program;
 //program_rom
 
-uint8_t getRomc(void) {
-    //TODO: read directly from registers
-    // romc_data = (SIO_BASE[1] >> 18) & 0x1F
-    uint8_t romc_data = 0;
-    for (uint8_t i = 0; i < 5; i++) {
-        bitWrite(romc_data, i, digitalRead(ROMC_PINS[i]));
-    }
-    return romc_data;
-}
-uint8_t getDbus(void) {
-    //TODO: read directly from registers
-    // dbus_data = (SIO_BASE[1] >> 6)
-    uint8_t dbus_data;
-    for (uint8_t i = 0; i < 8; i++) {
-        bitWrite(dbus_data, i, digitalRead(DBUS_PINS[i]));
-    }
-    return dbus_data;
-}
-
 uint8_t tick = 0; // Clock ticks since last WRITE falling edge
 uint8_t romc = 0x1C; // IDLE
 uint8_t dbus = 0x00;
@@ -93,56 +106,41 @@ uint16_t pc1 = 0x00;
 uint16_t dc0 = 0x00;
 uint16_t dc1 = 0x00;
 uint8_t phiState;
-uint8_t lastPhiState = LOW;
+uint8_t lastPhiState = false;
 uint8_t writeState;
-uint8_t lastWriteState = LOW;
+uint8_t lastWriteState = false;
 uint16_t tmp;
 void loop() {
 
-    // writeState = (SIO_BASE[1] >> WRITE_PIN) & 1
-    writeState = digitalRead(WRITE_PIN);
+    writeState = gpio_in(WRITE_PIN);
     if (writeState != lastWriteState) {
-        if (writeState == LOW) { // Falling edge
+        if (!writeState) { // Falling edge
             tick = 0;
             
-            // SIO_BASE[5] = 1 << DBUS_OUT_CE_PIN   // Set DBUS_OUT_CE_PIN
-            digitalWrite(DBUS_OUT_CE_PIN, HIGH);
+            gpio_set(DBUS_OUT_CE_PIN);
+             
+            sio_hw->gpio_oe_clr = 0xFF << 6;  // Place DBUS in input mode
             
-            // SIO_BASE[10] = 0xFF << 6     // Place DBUS in input mode
-            for (uint8_t i = 0; i < 8; i++) {
-                digitalWrite(DBUS_PINS[i], LOW);
-                pinMode(DBUS_PINS[i], INPUT_PULLUP);
-            }
-            
-            // SIO_BASE[6] = 1 << DBUS_IN_CE_PIN   // Clear DBUS_IN_CE_PIN
-            digitalWrite(DBUS_IN_CE_PIN, LOW);
+            gpio_clear(DBUS_IN_CE_PIN);
             
         } else { // Rising edge
-            
-            // SIO_BASE[5] = 1 << DBUS_IN_CE_PIN   // Set DBUS_IN_CE_PIN
-            digitalWrite(DBUS_IN_CE_PIN, HIGH);
+            gpio_set(DBUS_IN_CE_PIN);
 
-            // SIO_BASE[9] = 0xFF << 6     // Place DBUS in output mode
-            // SIO_BASE[5] = dbus << 6     // Set DBUS high bits
-            // SIO_BASE[6] = (!dbus) << 6  // Clear DBUS low bits
-            for (uint8_t i = 0; i < 8; i++) {
-                pinMode(DBUS_PINS[i], OUTPUT);
-                digitalWrite(DBUS_PINS[i], bitRead(dbus, i));
-            }
+            sio_hw->gpio_oe_set = 0xFF << 6;     // Place DBUS in output mode
+            sio_hw->gpio_set = dbus << 6;        // Set DBUS high bits
+            sio_hw->gpio_clr = (!dbus) << 6;     // Clear DBUS low bits
             
-            // SIO_BASE[6] = 1 << DBUS_OUT_CE_PIN   // Clear DBUS_OUT_CE_PIN
-            digitalWrite(DBUS_OUT_CE_PIN, LOW);
+            gpio_clear(DBUS_OUT_CE_PIN);
         }
     }
     lastWriteState = writeState;
 
-    // phiState = (SIO_BASE[1] >> PHI_PIN) & 1
-    phiState = digitalRead(PHI_PIN);
-    if (phiState != lastPhiState && phiState == HIGH) { // Rising edge
+    phiState = gpio_in(PHI_PIN);
+    if (phiState != lastPhiState && phiState) { // Rising edge
   
         if (tick == 1) { // Wait for the second tick for ROMC to stabalize
-            dbus = getDbus(); // is this valid at tick 1, or only when write is high?
-            switch (getRomc()) {
+            dbus = read_dbus(); // is this valid at tick 1, or only when write is high?
+            switch (read_romc()) {
               case 0x00:
                   /*      
                    * Instruction Fetch. The device whose address space includes the
