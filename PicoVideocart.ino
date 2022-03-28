@@ -12,18 +12,25 @@ uint32_t* SIO_BASE = 0xd0000000;
 
 void setup() {
     // Initialize cartridge pins
+    // SIO_BASE[10] = 0xFF << 6     // Place DBUS in input mode
     for (uint8_t i = 0; i < 8; i++) {
-        pinMode(DBUS_PINS[i], INPUT_PULLUP); // Default to high impedance
+        pinMode(DBUS_PINS[i], INPUT_PULLUP);
     }
     
-    // Default to input mode on dbus
+    // SIO_BASE[5] = 1 << DBUS_OUT_CE_PIN     // Set DBUS_OUT_CE_PIN
+    // SIO_BASE[9] = 1 << DBUS_OUT_CE_PIN     // Place DBUS_OUT_CE_PIN in output mode
     digitalWrite(DBUS_OUT_CE_PIN, HIGH);
     pinMode(DBUS_OUT_CE_PIN, OUTPUT);
     
+    // SIO_BASE[6] = 1 << DBUS_IN_CE_PIN     // Clear DBUS_IN_CE_PIN
+    // SIO_BASE[9] = 1 << DBUS_IN_CE_PIN     // Place DBUS_IN_CE_PIN in output mode
     digitalWrite(DBUS_IN_CE_PIN, LOW);
     pinMode(DBUS_IN_CE_PIN, OUTPUT);
 
     // Use the LED for simple debugging
+    // SIO_BASE[5] = 1 << LED_BUILTIN     // Set LED_BUILTIN
+    // SIO_BASE[9] = 1 << LED_BUILTIN     // Place LED_BUILTIN in output mode
+    digitalWrite(LED_BUILTIN, HIGH);
     pinMode(LED_BUILTIN, OUTPUT);
 
 }
