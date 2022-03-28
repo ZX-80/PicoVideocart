@@ -8,6 +8,8 @@ constexpr uint8_t ROMC_PINS[5] = {18, 19, 20, 21, 22}; //ROMC0 - ROMC4; Slow but
 constexpr uint8_t DBUS_IN_CE_PIN = 15;
 constexpr uint8_t DBUS_OUT_CE_PIN = 14;
 
+uint32_t* SIO_BASE = 0xd0000000;
+
 void setup() {
     // Initialize cartridge pins
     for (uint8_t i = 0; i < 8; i++) {
@@ -59,6 +61,7 @@ Program program;
 
 uint8_t getRomc(void) {
     //TODO: read directly from registers
+    // romc_data = (SIO_BASE[1] >> 18) & 0x1F
     uint8_t romc_data = 0;
     for (uint8_t i = 0; i < 5; i++) {
         bitWrite(romc_data, i, digitalRead(ROMC_PINS[i]));
@@ -67,6 +70,7 @@ uint8_t getRomc(void) {
 }
 uint8_t getDbus(void) {
     //TODO: read directly from registers
+    // dbus_data = (SIO_BASE[1] >> 6)
     uint8_t dbus_data;
     for (uint8_t i = 0; i < 8; i++) {
         bitWrite(dbus_data, i, digitalRead(DBUS_PINS[i]));
@@ -88,40 +92,44 @@ uint8_t lastWriteState = LOW;
 uint16_t tmp;
 void loop() {
 
+    // writeState = (SIO_BASE[1] >> WRITE_PIN) & 1
     writeState = digitalRead(WRITE_PIN);
     if (writeState != lastWriteState) {
         if (writeState == LOW) { // Falling edge
             tick = 0;
             
+            // SIO_BASE[5] = 1 << DBUS_OUT_CE_PIN   // Set DBUS_OUT_CE_PIN
             digitalWrite(DBUS_OUT_CE_PIN, HIGH);
-            pinMode(DBUS_OUT_CE_PIN, OUTPUT);
             
+            // SIO_BASE[10] = 0xFF << 6     // Place DBUS in input mode
             for (uint8_t i = 0; i < 8; i++) {
                 digitalWrite(DBUS_PINS[i], LOW);
                 pinMode(DBUS_PINS[i], INPUT_PULLUP);
             }
             
+            // SIO_BASE[6] = 1 << DBUS_IN_CE_PIN   // Clear DBUS_IN_CE_PIN
             digitalWrite(DBUS_IN_CE_PIN, LOW);
-            pinMode(DBUS_IN_CE_PIN, OUTPUT);
             
         } else { // Rising edge
-            digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // Debug
-
+            
+            // SIO_BASE[5] = 1 << DBUS_IN_CE_PIN   // Set DBUS_IN_CE_PIN
             digitalWrite(DBUS_IN_CE_PIN, HIGH);
-            pinMode(DBUS_IN_CE_PIN, OUTPUT);
 
+            // SIO_BASE[9] = 0xFF << 6     // Place DBUS in output mode
+            // SIO_BASE[5] = dbus << 6     // Set DBUS high bits
+            // SIO_BASE[6] = (!dbus) << 6  // Clear DBUS low bits
             for (uint8_t i = 0; i < 8; i++) {
-                //digitalWrite(DBUS_PINS[i], bitRead(dbus, i));
                 pinMode(DBUS_PINS[i], OUTPUT);
                 digitalWrite(DBUS_PINS[i], bitRead(dbus, i));
             }
             
+            // SIO_BASE[6] = 1 << DBUS_OUT_CE_PIN   // Clear DBUS_OUT_CE_PIN
             digitalWrite(DBUS_OUT_CE_PIN, LOW);
-            pinMode(DBUS_OUT_CE_PIN, OUTPUT);
         }
     }
     lastWriteState = writeState;
 
+    // phiState = (SIO_BASE[1] >> PHI_PIN) & 1
     phiState = digitalRead(PHI_PIN);
     if (phiState != lastPhiState && phiState == HIGH) { // Rising edge
   
