@@ -98,6 +98,7 @@ uint8_t lastPhiState = false;
 uint8_t writeState;
 uint8_t lastWriteState = false;
 uint16_t tmp;
+bool out_op = false;
 void loop() {
 
     writeState = gpio_in(WRITE_PIN);
@@ -110,7 +111,8 @@ void loop() {
             sio_hw->gpio_oe_clr = 0xFF << 6;  
             gpio_clear(DBUS_IN_CE_PIN);
             
-        } else { // Rising edge
+        } else if (out_op) { // Rising edge
+            out_op = false;
             // Place DBUS in output mode
             gpio_set(DBUS_IN_CE_PIN);
             sio_hw->gpio_oe_set = 0xFF << 6;     
@@ -125,7 +127,9 @@ void loop() {
     if (phiState != lastPhiState && phiState) { // Rising edge
   
         if (tick == 1) { // Wait for the second tick for ROMC to stabalize
+            // TODO: only read dbus, and thus execute certain instructions, when WRITE is high (tick 6) / on tick 5
             dbus = read_dbus(); // is this valid at tick 1, or only when write is high?
+                                // Only when write is high. Technically it's valid after 4 ticks (tick 5/6)
             switch (read_romc()) {
               case 0x00:
                   /*      
@@ -136,6 +140,7 @@ void loop() {
                    */
                   dbus = read_program_byte(pc0);
                   pc0 += 1;
+                  out_op = true;
                   break;
               case 0x01:
                   /*
@@ -146,6 +151,7 @@ void loop() {
                    */
                   dbus = read_program_byte(pc0);
                   pc0 += dbus;
+                  out_op = true;
                   break;
               case 0x02:
                   /*
@@ -156,6 +162,7 @@ void loop() {
                    */
                   dbus = read_program_byte(dc0);
                   dc0 += 1;
+                  out_op = true;
                   break;
               case 0x03:
                   /*
@@ -164,6 +171,7 @@ void loop() {
                    */
                   dbus = read_program_byte(pc0);
                   pc0 += 1;
+                  out_op = true;
                   break;
               case 0x04:
                   /*
@@ -184,12 +192,14 @@ void loop() {
                    * Place the high order byte of DC0 on the data bus.
                    */
                   dbus = dc0 >> 8;
+                  out_op = true;
                   break;
               case 0x07:
                   /*
                    * Place the high order byte of PC1 on the data bus.
                    */
                   dbus = pc1 >> 8;
+                  out_op = true;
                   break;
               case 0x08:
                   /*
@@ -206,6 +216,7 @@ void loop() {
                    * register must place the low order byte of DC0 onto the data bus.
                    */
                   dbus = dc0 & 0xff;
+                  out_op = true;
                   break;
               case 0x0A:
                   /*
@@ -220,6 +231,7 @@ void loop() {
                    * must place the low order byte of PC1 onto the data bus.
                    */
                   dbus = pc1 & 0xff;
+                  out_op = true;
                   break;
               case 0x0C:
                   /*
@@ -230,6 +242,7 @@ void loop() {
                    */
                   dbus = read_program_byte(pc0);
                   pc0 = (pc0 & 0xff00) | dbus;
+                  out_op = true;
                   break;
               case 0x0D:
                   /*
@@ -247,6 +260,7 @@ void loop() {
                    */
                   dbus = read_program_byte(pc0);
                   dc0 = (dc0 & 0xff00) | dbus;
+                  out_op = true;
                   break;
               case 0x0F:
                   /*
@@ -273,6 +287,7 @@ void loop() {
                    */
                   dbus = read_program_byte(pc0);
                   dc0 = (dc0 & 0x00ff) | (dbus << 8);
+                  out_op = true;
                   break;
               case 0x12:
                   /*
@@ -373,6 +388,7 @@ void loop() {
                    * must place the low order byte of PC0 onto the data bus.
                    */
                   dbus = pc0 & 0xff;
+                  out_op = true;
                   break;
               case 0x1F:
                   /*
@@ -380,6 +396,7 @@ void loop() {
                    * must place the high order byte of PC0 onto the data bus.
                    */
                   dbus = (pc0 >> 8) & 0xff;
+                  out_op = true;
                   break;
             }
         }
