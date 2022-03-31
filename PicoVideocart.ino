@@ -9,10 +9,14 @@ constexpr uint8_t ROMC0_PIN = 18;
 constexpr uint8_t DBUS_IN_CE_PIN = 15;
 constexpr uint8_t DBUS_OUT_CE_PIN = 14;
 
+
+
+// GPIO functions //
+
 inline void gpio_init(uint8_t pin, bool mode) __attribute__((always_inline));
 inline void gpio_init(uint8_t pin, bool mode) {
     iobank0_hw -> io[pin].ctrl &= 0xFFE0;
-    iobank0_hw -> io[pin].ctrl |= ((2 + mode) << 12) + 5;
+    iobank0_hw -> io[pin].ctrl |= ((2 + mode) << 12) + GPIO_FUNC_SIO;
 }
 
 inline void gpio_set(uint8_t pin) __attribute__((always_inline));
@@ -40,6 +44,22 @@ inline uint8_t read_dbus() {
     return (sio_hw->gpio_in >> DBUS0_PIN) & 0xFF;
 }
 
+inline void write_dbus(uint8_t value) __attribute__((always_inline));
+inline void write_dbus(uint8_t value) {   
+    sio_hw->gpio_set = value << DBUS0_PIN;
+    sio_hw->gpio_clr = (!value) << DBUS0_PIN;
+}
+
+inline void dbus_input_mode() __attribute__((always_inline));
+inline void dbus_input_mode() {
+    sio_hw->gpio_oe_clr = 0xFF << DBUS0_PIN;
+}
+
+inline void dbus_output_mode() __attribute__((always_inline));
+inline void dbus_output_mode() {
+    sio_hw->gpio_oe_set = 0xFF << DBUS0_PIN;
+}
+
 void setup() {
     // Initialize cartridge pins
     for (uint8_t i = 0; i < 8; i++) {
@@ -64,17 +84,24 @@ void setup() {
 
 }
 
+
+
+// ROM/SRAM functions //
+
 bool sram_present = false;
 uint8_t sram[0x800] = {0}; // 2K SRAM
 
-uint8_t read_program_byte(uint16_t address) {
+inline uint8_t read_program_byte(uint16_t address) __attribute__((always_inline));
+inline uint8_t read_program_byte(uint16_t address) {
     if (0x2800 <= address && address < 0x3000 && sram_present) {
         return sram[address - 0x2800];
     } else {
         return program_rom[address - 0x0800];
     }
 }
-void write_program_byte(uint16_t address, uint8_t data) {
+
+inline void write_program_byte(uint16_t address, uint8_t data) __attribute__((always_inline));
+inline void write_program_byte(uint16_t address, uint8_t data) {
     if (0x2800 <= address && address < 0x3000) {
         if (!sram_present) {
             sram_present = true;
@@ -82,6 +109,8 @@ void write_program_byte(uint16_t address, uint8_t data) {
         sram[address - 0x2800] = data;
     }
 }
+
+
 
 uint8_t tick = 0; // Clock ticks since last WRITE falling edge
 uint8_t romc = 0x1C; // IDLE
@@ -96,38 +125,31 @@ uint8_t writeState;
 uint8_t lastWriteState = false;
 uint16_t tmp;
 bool out_op = false;
-bool in_op = false;
 void loop() {
 
     writeState = gpio_in(WRITE_PIN);
     if (writeState != lastWriteState) {
         if (!writeState) { // Falling edge
             tick = 0;
-            // Place DBUS in input mode
-            gpio_set(DBUS_OUT_CE_PIN);
-            sio_hw->gpio_oe_clr = 0xFF << DBUS0_PIN;  
-            gpio_clear(DBUS_IN_CE_PIN);
-            
+            gpio_set(DBUS_OUT_CE_PIN);  // Disable output buffer
+            dbus_input_mode();
+            gpio_clear(DBUS_IN_CE_PIN); // Enable input buffer
         } else if (out_op) { // Rising edge
             out_op = false;
-            // Place DBUS in output mode
-            gpio_set(DBUS_IN_CE_PIN);
-            sio_hw->gpio_oe_set = 0xFF << DBUS0_PIN;     
-            sio_hw->gpio_set = dbus << DBUS0_PIN;
-            sio_hw->gpio_clr = (!dbus) << DBUS0_PIN;
-            gpio_clear(DBUS_OUT_CE_PIN);
+            gpio_set(DBUS_IN_CE_PIN);    // Disable input buffer
+            dbus_output_mode();   
+            write_dbus(dbus);
+            gpio_clear(DBUS_OUT_CE_PIN); // Enable output buffer
         }
     }
     lastWriteState = writeState;
 
     phiState = gpio_in(PHI_PIN);
     if (phiState != lastPhiState && phiState) { // Rising edge
-  
-        if (tick == 1) { // Wait for the second tick for ROMC to stabalize
-            // TODO: only read dbus, and thus execute certain instructions, when WRITE is high (tick 6) / on tick 5
-            dbus = read_dbus(); // is this valid at tick 1, or only when write is high?
-                                // Only when write is high. Technically it's valid after 4 ticks (tick 5/6)
-            switch (read_romc()) {
+        
+        if (tick == 1) { // Wait for the second tick for ROMC to stabilize
+            romc = read_romc();
+            switch (romc) {
               case 0x00:
                   /*      
                    * Instruction Fetch. The device whose address space includes the
@@ -176,14 +198,6 @@ void loop() {
                    */
                   pc0 = pc1;
                   break;
-              case 0x05:
-                  /*
-                   * Store the data bus contents into the memory location pointed
-                   * to by DC0; increment DC0.
-                   */
-                  write_program_byte(dc0, dbus);
-                  dc0 += 1;
-                  break;
               case 0x06:
                   /*
                    * Place the high order byte of DC0 on the data bus.
@@ -198,15 +212,6 @@ void loop() {
                   dbus = pc1 >> 8;
                   out_op = true;
                   break;
-              case 0x08:
-                  /*
-                   * All devices copy the contents of PC0 into PC1. The CPU outputs
-                   * zero on the data bus in this ROMC state. Load the data bus into
-                   * both halves of PC0, thus clearing the register.
-                   */
-                  pc1 = pc0;
-                  pc0 = (dbus << 8) | dbus;
-                  break;
               case 0x09:
                   /*
                    * The device whose address space includes the contents of the DC0
@@ -214,13 +219,6 @@ void loop() {
                    */
                   dbus = dc0 & 0xff;
                   out_op = true;
-                  break;
-              case 0x0A:
-                  /*
-                   * All devices add the 8-bit value on the data bus, treated as
-                   * signed binary number, to the data counter.
-                   */
-                  dc0 += (int8_t) dbus;
                   break;
               case 0x0B:
                   /*
@@ -286,14 +284,6 @@ void loop() {
                   dc0 = (dc0 & 0x00ff) | (dbus << 8);
                   out_op = true;
                   break;
-              case 0x12:
-                  /*
-                   * All devices copy the contents of PC0 into PC1. All devices then
-                   * move the contents of the data bus into the low order byte of PC0.
-                   */
-                  pc1 = pc0;
-                  pc0 = (pc0 & 0xff00) | dbus;
-                  break;
               case 0x13:
                   /*
                    * The interrupting device with highest priority must move the high
@@ -304,48 +294,6 @@ void loop() {
                    * to another interrupt).
                    */
                   // TODO
-                  break;
-              case 0x14:
-                  /*
-                   * All devices move the contents of the data bus into the high
-                   * order byte of PC0.
-                   */
-                  pc0 = (pc0 & 0x00ff) | (dbus << 8);
-                  break;
-              case 0x15:
-                  /*
-                   * All devices move the contents of the data bus into the high
-                   * order byte of PC1.
-                   */
-                  pc1 = (pc1 & 0x00ff) | (dbus << 8);
-                  break;
-              case 0x16:
-                  /*
-                   * All devices move the contents of the data bus into the high
-                   * order byte of DC0.
-                   */
-                  dc0 = (dc0 & 0x00ff) | (dbus << 8);
-                  break;
-              case 0x17:
-                  /*
-                   * All devices move the contents of the data bus into the low
-                   * order byte of PC0.
-                   */
-                  pc0 = (pc0 & 0xff00) | dbus;
-                  break;
-              case 0x18:
-                  /*
-                   * All devices move the contents of the data bus into the low
-                   * order byte of PC1.
-                   */
-                  pc1 = (pc1 & 0xff00) | dbus;
-                  break;
-              case 0x19:
-                  /*
-                   * All devices move the contents of the data bus into the low
-                   * order byte of DC0.
-                   */
-                  dc0 = (dc0 & 0xff00) | dbus;
                   break;
               case 0x1A:
                   /*
@@ -395,6 +343,84 @@ void loop() {
                   dbus = (pc0 >> 8) & 0xff;
                   out_op = true;
                   break;
+            }
+        } else if (tick == 4) {
+            dbus = read_dbus(); // Only valid after 4 ticks
+            switch (romc) {
+                case 0x05:
+                    /*
+                     * Store the data bus contents into the memory location pointed
+                     * to by DC0; increment DC0.
+                     */
+                    write_program_byte(dc0, dbus);
+                    dc0 += 1;
+                    break;
+                case 0x08:
+                    /*
+                     * All devices copy the contents of PC0 into PC1. The CPU outputs
+                     * zero on the data bus in this ROMC state. Load the data bus into
+                     * both halves of PC0, thus clearing the register.
+                     */
+                    pc1 = pc0;
+                    pc0 = (dbus << 8) | dbus;
+                    break;
+                case 0x0A:
+                    /*
+                     * All devices add the 8-bit value on the data bus, treated as
+                     * signed binary number, to the data counter.
+                     */
+                    dc0 += (int8_t) dbus;
+                    break;  
+                case 0x12:
+                    /*
+                     * All devices copy the contents of PC0 into PC1. All devices then
+                     * move the contents of the data bus into the low order byte of PC0.
+                     */
+                    pc1 = pc0;
+                    pc0 = (pc0 & 0xff00) | dbus;
+                    break;
+               case 0x14:
+                    /*
+                     * All devices move the contents of the data bus into the high
+                     * order byte of PC0.
+                     */
+                    pc0 = (pc0 & 0x00ff) | (dbus << 8);
+                    break;
+                case 0x15:
+                    /*
+                     * All devices move the contents of the data bus into the high
+                     * order byte of PC1.
+                     */
+                    pc1 = (pc1 & 0x00ff) | (dbus << 8);
+                    break;
+                case 0x16:
+                    /*
+                     * All devices move the contents of the data bus into the high
+                     * order byte of DC0.
+                     */
+                    dc0 = (dc0 & 0x00ff) | (dbus << 8);
+                    break;
+                case 0x17:
+                    /*
+                     * All devices move the contents of the data bus into the low
+                     * order byte of PC0.
+                     */
+                    pc0 = (pc0 & 0xff00) | dbus;
+                    break;
+                case 0x18:
+                    /*
+                     * All devices move the contents of the data bus into the low
+                     * order byte of PC1.
+                     */
+                    pc1 = (pc1 & 0xff00) | dbus;
+                    break;
+                case 0x19:
+                    /*
+                     * All devices move the contents of the data bus into the low
+                     * order byte of DC0.
+                     */
+                    dc0 = (dc0 & 0xff00) | dbus;
+                    break;
             }
         }
         tick += 1;
