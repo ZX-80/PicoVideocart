@@ -9,9 +9,6 @@ constexpr uint8_t ROMC0_PIN = 18;
 constexpr uint8_t DBUS_IN_CE_PIN = 15;
 constexpr uint8_t DBUS_OUT_CE_PIN = 14;
 
-constexpr uint8_t GPIO_INPUT = 0;
-constexpr uint8_t GPIO_OUTPUT = 1;
-
 inline void gpio_init(uint8_t pin, bool mode) __attribute__((always_inline));
 inline void gpio_init(uint8_t pin, bool mode) {
     iobank0_hw -> io[pin].ctrl &= 0xFFE0;
@@ -46,23 +43,23 @@ inline uint8_t read_dbus() {
 void setup() {
     // Initialize cartridge pins
     for (uint8_t i = 0; i < 8; i++) {
-        gpio_init(DBUS0_PIN + i, GPIO_INPUT);
+        gpio_init(DBUS0_PIN + i, GPIO_IN);
     }
     for (uint8_t i = 0; i < 5; i++) {
-        gpio_init(ROMC0_PIN + i, GPIO_INPUT);
+        gpio_init(ROMC0_PIN + i, GPIO_IN);
     }
     
-    gpio_init(WRITE_PIN, GPIO_INPUT);    
-    gpio_init(PHI_PIN, GPIO_INPUT);
+    gpio_init(WRITE_PIN, GPIO_IN);    
+    gpio_init(PHI_PIN, GPIO_IN);
     
-    gpio_init(DBUS_OUT_CE_PIN, GPIO_OUTPUT);
+    gpio_init(DBUS_OUT_CE_PIN, GPIO_OUT);
     gpio_set(DBUS_OUT_CE_PIN);
 
-    gpio_init(DBUS_IN_CE_PIN, GPIO_OUTPUT);
+    gpio_init(DBUS_IN_CE_PIN, GPIO_OUT);
     gpio_clear(DBUS_IN_CE_PIN);
 
     // Use the LED for simple debugging
-    gpio_init(LED_BUILTIN, GPIO_OUTPUT);
+    gpio_init(LED_BUILTIN, GPIO_OUT);
     gpio_set(LED_BUILTIN);
 
 }
@@ -99,25 +96,25 @@ uint8_t writeState;
 uint8_t lastWriteState = false;
 uint16_t tmp;
 bool out_op = false;
+bool in_op = false;
 void loop() {
 
     writeState = gpio_in(WRITE_PIN);
     if (writeState != lastWriteState) {
         if (!writeState) { // Falling edge
             tick = 0;
-
             // Place DBUS in input mode
             gpio_set(DBUS_OUT_CE_PIN);
-            sio_hw->gpio_oe_clr = 0xFF << 6;  
+            sio_hw->gpio_oe_clr = 0xFF << DBUS0_PIN;  
             gpio_clear(DBUS_IN_CE_PIN);
             
         } else if (out_op) { // Rising edge
             out_op = false;
             // Place DBUS in output mode
             gpio_set(DBUS_IN_CE_PIN);
-            sio_hw->gpio_oe_set = 0xFF << 6;     
-            sio_hw->gpio_set = dbus << 6;
-            sio_hw->gpio_clr = (!dbus) << 6;
+            sio_hw->gpio_oe_set = 0xFF << DBUS0_PIN;     
+            sio_hw->gpio_set = dbus << DBUS0_PIN;
+            sio_hw->gpio_clr = (!dbus) << DBUS0_PIN;
             gpio_clear(DBUS_OUT_CE_PIN);
         }
     }
