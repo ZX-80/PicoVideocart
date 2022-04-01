@@ -344,7 +344,7 @@ void loop() {
                   out_op = true;
                   break;
             }
-        } else if (tick == 4) {
+        } else if (writeState) {
             dbus = read_dbus(); // Only valid after 4 ticks
             switch (romc) {
                 case 0x05:
