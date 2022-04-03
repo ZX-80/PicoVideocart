@@ -66,38 +66,24 @@ void setup() {
 
 // Game ROM functions //
 
-class Program {
-    public:
-        Program();
-        uint8_t read_byte(uint16_t address);
-        void write_byte(uint16_t address, uint8_t data);
-    private:
-        uint8_t program_data[1] = {0}; // 62K max
-        bool sram_present = false;
-        uint8_t sram[0x800] = {0}; // 2K SRAM
-};
-Program::Program() {}
-uint8_t Program::read_byte(uint16_t address) {
+bool sram_present = false;
+uint8_t sram[0x800] = {0}; // 2K SRAM
+uint8_t read_program_byte(uint16_t address) {
     // TODO: limit to program address range
-    if (0x2800 <= address && address < 0x3000 && this->sram_present) {
-        return this->sram[address - 0x2800];
+    if (0x2800 <= address && address < 0x3000 && sram_present) {
+        return sram[address - 0x2800];
     } else {
-        //return this->program_data[address];
         return program_rom[address - 0x0800];
     }
 }
-void Program::write_byte(uint16_t address, uint8_t data) {
+void write_program_byte(uint16_t address, uint8_t data) {
     if (0x2800 <= address && address < 0x3000) {
-        if (!this->sram_present) {
-            this->sram_present = true;
+        if (!sram_present) {
+            sram_present = true;
         }
-        // TODO: implement SRAM
-        this->sram[address - 0x2800] = data;
+        sram[address - 0x2800] = data;
     }
-    
 }
-Program program;
-//program_rom
 
 
 
@@ -149,7 +135,7 @@ void loop() {
                    * code addressed by PC0; then all devices increment the contents
                    * of PC0.
                    */
-                  dbus = program.read_byte(pc0);
+                  dbus = read_program_byte(pc0);
                   pc0 += 1;
                   out_op = true;
                   break;
@@ -160,7 +146,7 @@ void loop() {
                    * location addressed by PC0; then all devices add the 8-bit value
                    * on the data bus as signed binary number to PC0.
                    */
-                  dbus = program.read_byte(pc0);
+                  dbus = read_program_byte(pc0);
                   pc0 += dbus;
                   out_op = true;
                   break;
@@ -171,7 +157,7 @@ void loop() {
                    * the memory location addressed by DC0; then all devices increment
                    * DC0.
                    */
-                  dbus = program.read_byte(dc0);
+                  dbus = read_program_byte(dc0);
                   dc0 += 1;
                   out_op = true;
                   break;
@@ -182,7 +168,7 @@ void loop() {
                    *
                    * m_io is the last I/O address
                    */
-                  dbus = program.read_byte(pc0); //m_io?
+                  dbus = read_program_byte(pc0); //m_io?
                   pc0 += 1;
                   out_op = true;
                   break;
@@ -197,7 +183,7 @@ void loop() {
                    * Store the data bus contents into the memory location pointed
                    * to by DC0; increment DC0.
                    */
-                  program.write_byte(dc0, dbus); /*address, data*/
+                  write_program_byte(dc0, dbus);
                   dc0 += 1;
                   break;
               case 0x06:
@@ -253,7 +239,7 @@ void loop() {
                    * by PC0 into the data bus; then all devices move the value that
                    * has just been placed on the data bus into the low order byte of PC0.
                    */
-                  dbus = program.read_byte(pc0);
+                  dbus = read_program_byte(pc0);
                   pc0 = (pc0 & 0xff00) | dbus;
                   out_op = true;
                   break;
@@ -271,7 +257,7 @@ void loop() {
                    * The value on the data bus is then moved to the low order byte
                    * of DC0 by all devices.
                    */
-                  dbus = program.read_byte(pc0);
+                  dbus = read_program_byte(pc0);
                   dc0 = (dc0 & 0xff00) | dbus;
                   out_op = true;
                   break;
@@ -303,7 +289,7 @@ void loop() {
                    * data bus. All devices must then move the contents of the
                    * data bus to the upper byte of DC0.
                    */
-                  dbus = program.read_byte(pc0);
+                  dbus = read_program_byte(pc0);
                   dc0 = (dc0 & 0x00ff) | (dbus << 8);
                   out_op = true;
                   break;
