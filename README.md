@@ -2,7 +2,7 @@
 
 # PicoVideocart
  
-![badge](https://badgen.net/badge/version/v0.2.0/orange?style=flat-square)
+![badge](https://badgen.net/badge/version/v0.9.0/orange?style=flat-square)
 ![badge](https://badgen.net/badge/platform/RP2040/green?style=flat-square)
 ![badge](https://badgen.net/badge/Arduino/1.8.13/blue?style=flat-square)
 
