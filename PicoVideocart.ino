@@ -13,10 +13,11 @@ constexpr uint8_t DBUS_OUT_CE_PIN = 14;
 
 
 // GPIO functions //
-inline void gpio_init(uint8_t gpio) __attribute__((always_inline));
-inline void gpio_init(uint8_t gpio) {
-    gpio_set_dir(gpio, GPIO_IN);
-    gpio_put(gpio, false);
+
+inline void gpio_init(uint8_t gpio, bool direction, bool value) __attribute__((always_inline));
+inline void gpio_init(uint8_t gpio, bool direction, bool value) {
+    gpio_put(gpio, value);
+    gpio_set_dir(gpio, direction);
     gpio_set_function(gpio, GPIO_FUNC_SIO);
 }
 
@@ -32,34 +33,38 @@ inline uint8_t read_dbus() {
 
 void setup() {
 
-    // Initialize cartridge pins
-    for (uint8_t i = 0; i < 8; i++) {
-        gpio_init(DBUS0_PIN + i);
-    }
-    gpio_set_dir_in_masked(0xFF << DBUS0_PIN);  // Set DBUS to input mode
+    // Initialize data bus pins
+    gpio_set_dir_in_masked(0xFF << DBUS0_PIN);        // Set DBUS to input mode
+    gpio_clr_mask(0xFF << DBUS0_PIN);                 // Set DBUS data to 0
+    gpio_set_function(DBUS0_PIN + 0, GPIO_FUNC_SIO);  // Set DBUS pins to software controlled
+    gpio_set_function(DBUS0_PIN + 1, GPIO_FUNC_SIO);
+    gpio_set_function(DBUS0_PIN + 2, GPIO_FUNC_SIO);
+    gpio_set_function(DBUS0_PIN + 3, GPIO_FUNC_SIO);
+    gpio_set_function(DBUS0_PIN + 4, GPIO_FUNC_SIO);
+    gpio_set_function(DBUS0_PIN + 5, GPIO_FUNC_SIO);
+    gpio_set_function(DBUS0_PIN + 6, GPIO_FUNC_SIO);
+    gpio_set_function(DBUS0_PIN + 7, GPIO_FUNC_SIO);
     
-    for (uint8_t i = 0; i < 5; i++) {
-        gpio_init(ROMC0_PIN + i);
-    }
-    gpio_set_dir_in_masked(0x1F << ROMC0_PIN);  // Set ROMC to input mode
-
-    gpio_init(WRITE_PIN);
-          
-    //gpio_init(PHI_PIN, GPIO_IN);
-    pinMode(PHI_PIN, INPUT); // BUG: Analog pin won't init to digital input
-    
-    gpio_init(DBUS_OUT_CE_PIN);
-    gpio_put(DBUS_OUT_CE_PIN, true);
-    gpio_set_dir(DBUS_OUT_CE_PIN, GPIO_OUT);
-
-    gpio_init(DBUS_IN_CE_PIN);
-    gpio_put(DBUS_IN_CE_PIN, false);
-    gpio_set_dir(DBUS_IN_CE_PIN, GPIO_OUT);
-
-    gpio_init(LED_BUILTIN);
-    gpio_put(LED_BUILTIN, true);
-    gpio_set_dir(LED_BUILTIN, GPIO_OUT);
+    // Initialize ROMC pins
+    gpio_set_dir_in_masked(0x1F << ROMC0_PIN);        // Set ROMC to input mode
+    gpio_clr_mask(0x1F << ROMC0_PIN);                 // Set ROMC data to 0
+    gpio_set_function(ROMC0_PIN + 0, GPIO_FUNC_SIO);  // Set ROMC pins to software controlled
+    gpio_set_function(ROMC0_PIN + 1, GPIO_FUNC_SIO);
+    gpio_set_function(ROMC0_PIN + 2, GPIO_FUNC_SIO);
+    gpio_set_function(ROMC0_PIN + 3, GPIO_FUNC_SIO);
+    gpio_set_function(ROMC0_PIN + 4, GPIO_FUNC_SIO);
+ 
+    // Initialize other cartridge pins
+    gpio_init(WRITE_PIN, GPIO_IN, false);
+    gpio_init(PHI_PIN, GPIO_IN, false);
+    gpio_init(DBUS_OUT_CE_PIN, GPIO_OUT, true);
+    gpio_init(DBUS_IN_CE_PIN, GPIO_OUT, false);
+    gpio_init(LED_BUILTIN, GPIO_OUT, true);
 }
+
+
+
+// Game ROM functions //
 
 class Program {
     public:
@@ -93,6 +98,10 @@ void Program::write_byte(uint16_t address, uint8_t data) {
 }
 Program program;
 //program_rom
+
+
+
+// Core 0 loop //
 
 uint8_t tick = 0; // Clock ticks since last WRITE falling edge
 uint8_t romc = 0x1C; // NOP
