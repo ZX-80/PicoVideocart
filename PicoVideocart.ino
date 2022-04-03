@@ -1,14 +1,16 @@
 #include <hardware/structs/iobank0.h>
 #include "Videocart12.h"
 
-
-
 constexpr uint8_t WRITE_PIN = 17;
 constexpr uint8_t PHI_PIN = 26;
 constexpr uint8_t DBUS0_PIN = 6;
 constexpr uint8_t ROMC0_PIN = 18;
 constexpr uint8_t DBUS_IN_CE_PIN = 15;
 constexpr uint8_t DBUS_OUT_CE_PIN = 14;
+
+constexpr uint16_t PROGRAM_START_ADDR = 0x800;  // Program address space: [0x0800 - 0x10000)
+constexpr uint16_t SRAM_START_ADDR = 0x2800;    // SRAM address space: [0x2800 - 0x3000)
+constexpr uint16_t SRAM_SIZE = 0x800;           // 2K
 
 
 
@@ -64,23 +66,21 @@ void setup() {
 
 
 
-// Game ROM functions //
+// Program ROM functions //
 
 bool sram_present = false;
-uint8_t sram[0x800] = {0}; // 2K SRAM
+uint8_t sram[SRAM_SIZE];
 uint8_t read_program_byte(uint16_t address) {
-    if (0x2800 <= address && address < 0x3000 && sram_present) {
-        return sram[address - 0x2800];
+    if (SRAM_START_ADDR <= address && address < (SRAM_START_ADDR + SRAM_SIZE) && sram_present) {
+        return sram[address - SRAM_START_ADDR];
     } else {
-        return program_rom[address - 0x0800];
+        return program_rom[address - PROGRAM_START_ADDR];
     }
 }
 void write_program_byte(uint16_t address, uint8_t data) {
-    if (0x2800 <= address && address < 0x3000) {
-        if (!sram_present) {
-            sram_present = true;
-        }
-        sram[address - 0x2800] = data;
+    if (SRAM_START_ADDR <= address && address < (SRAM_START_ADDR + SRAM_SIZE)) {
+        sram_present = true;
+        sram[address - SRAM_START_ADDR] = data;
     }
 }
 
@@ -89,8 +89,8 @@ void write_program_byte(uint16_t address, uint8_t data) {
 // Core 0 loop //
 
 uint8_t tick = 0; // Clock ticks since last WRITE falling edge
-uint8_t romc = 0x1C; // NOP
-uint8_t dbus = 0x33;
+uint8_t romc = 0x1C; // IDLE
+uint8_t dbus = 0x00;
 uint16_t pc0 = 0x00;
 uint16_t pc1 = 0x00;
 uint16_t dc0 = 0x00;
@@ -104,7 +104,6 @@ bool out_op = false;
 
 inline void execute_romc() __attribute__((always_inline));
 inline void execute_romc() {
-    // Note: Videocart address space = 0x0800 to 0xFFFF
     switch (romc) {
         case 0x00:
             /*      
@@ -114,7 +113,7 @@ inline void execute_romc() {
              * of PC0.
              */
             dbus = read_program_byte(pc0);
-            out_op = pc0 >= 0x800;
+            out_op = pc0 >= PROGRAM_START_ADDR;
             pc0 += 1;
             break;
         case 0x01:
@@ -124,7 +123,7 @@ inline void execute_romc() {
              * location addressed by PC0; then all devices add the 8-bit value
              * on the data bus as signed binary number to PC0.
              */
-            if (pc0 >= 0x800) {
+            if (pc0 >= PROGRAM_START_ADDR) {
                 dbus = read_program_byte(pc0);
                 out_op = true;
             }
@@ -138,7 +137,7 @@ inline void execute_romc() {
              * DC0.
              */
             dbus = read_program_byte(dc0);
-            out_op = dc0 >= 0x800;
+            out_op = dc0 >= PROGRAM_START_ADDR;
             dc0 += 1;
             break;
         case 0x03:
@@ -147,7 +146,7 @@ inline void execute_romc() {
              * fetches (using PC0) instead of instruction fetches.
              */
             dbus = read_program_byte(pc0);
-            out_op = pc0 >= 0x800;
+            out_op = pc0 >= PROGRAM_START_ADDR;
             pc0 += 1;
             break;
         case 0x04:
@@ -174,7 +173,7 @@ inline void execute_romc() {
              * includes the contents of the DC0 register
              */
             dbus = dc0 >> 8;
-            out_op = dc0 >= 0x800;
+            out_op = dc0 >= PROGRAM_START_ADDR;
             break;
         case 0x07:
             /*
@@ -184,7 +183,7 @@ inline void execute_romc() {
              * includes the contents of the PC1 register
              */
             dbus = pc1 >> 8;
-            out_op = pc1 >= 0x800;
+            out_op = pc1 >= PROGRAM_START_ADDR;
             break;
         case 0x08:
             /*
@@ -201,7 +200,7 @@ inline void execute_romc() {
              * register must place the low order byte of DC0 onto the data bus.
              */
             dbus = dc0 & 0xff;
-            out_op = dc0 >= 0x800;
+            out_op = dc0 >= PROGRAM_START_ADDR;
             break;
         case 0x0A:
             /*
@@ -216,7 +215,7 @@ inline void execute_romc() {
              * must place the low order byte of PC1 onto the data bus.
              */
             dbus = pc1 & 0xff;
-            out_op = pc1 >= 0x800;
+            out_op = pc1 >= PROGRAM_START_ADDR;
             break;
         case 0x0C:
             /*
@@ -225,7 +224,7 @@ inline void execute_romc() {
              * by PC0 into the data bus; then all devices move the value that
              * has just been placed on the data bus into the low order byte of PC0.
              */
-            if (pc0 >= 0x800) {
+            if (pc0 >= PROGRAM_START_ADDR) {
                 dbus = read_program_byte(pc0);
                 out_op = true;
             }
@@ -245,7 +244,7 @@ inline void execute_romc() {
              * The value on the data bus is then moved to the low order byte
              * of DC0 by all devices.
              */
-            if (pc0 >= 0x800) {
+            if (pc0 >= PROGRAM_START_ADDR) {
                 dbus = read_program_byte(pc0);
                 out_op = true;
             }
@@ -274,7 +273,7 @@ inline void execute_romc() {
              * data bus. All devices must then move the contents of the
              * data bus to the upper byte of DC0.
              */
-            if (pc0 >= 0x800) {
+            if (pc0 >= PROGRAM_START_ADDR) {
                 dbus = read_program_byte(pc0);
                 out_op = true;
             }
@@ -362,6 +361,9 @@ inline void execute_romc() {
         case 0x1C:
             /*
              * None.
+             *
+             * Note: It's function is listed as IDLE in the Fairchild F3850 CPU
+             * datasheet. Used in the RESET and INTRPT intructions.
              */
             break;
         case 0x1D:
@@ -379,7 +381,7 @@ inline void execute_romc() {
              * must place the low order byte of PC0 onto the data bus.
              */
             dbus = pc0 & 0xff;
-            out_op = pc0 >= 0x800;
+            out_op = pc0 >= PROGRAM_START_ADDR;
             break;
         case 0x1F:
             /*
@@ -387,7 +389,7 @@ inline void execute_romc() {
              * must place the high order byte of PC0 onto the data bus.
              */
             dbus = (pc0 >> 8) & 0xff;
-            out_op = pc0 >= 0x800;
+            out_op = pc0 >= PROGRAM_START_ADDR;
             break;
       }
 }
