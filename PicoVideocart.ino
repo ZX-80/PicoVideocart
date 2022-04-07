@@ -1,5 +1,6 @@
 #include <hardware/structs/iobank0.h>
 #include "Videocart12.h"
+#include "pico/multicore.h"
 
 constexpr uint8_t WRITE_PIN = 17;
 constexpr uint8_t PHI_PIN = 26;
@@ -435,4 +436,31 @@ void loop() {
         tick += 1;
     }
     lastPhiState = phiState;
+}
+
+// Running on core1
+void setup1() {
+    gpio_put(LED_BUILTIN, true);
+    Serial.begin(500000);
+}
+
+void loop1() {
+    /* Quick debugging on core 1
+     * Note: Because there's no syncronization, and because serial is slow, these variables
+     * are taken at random times with no corellation. For example, the dbus printed could be
+     * taken from a different romc than the one listed prior.
+     */
+    Serial.print(romc, HEX);
+    Serial.print(" ");
+    Serial.print(dbus, HEX);
+    Serial.print(" ");
+    Serial.print(pc0, HEX);
+    Serial.print(" ");
+    Serial.print(pc1, HEX);
+    Serial.print(" ");
+    Serial.print(dc0, HEX);
+    Serial.print(" ");
+    Serial.print(outputInstruction, HEX);
+    Serial.print(" ");
+    Serial.println(tick, HEX);
 }
