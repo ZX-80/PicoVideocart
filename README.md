@@ -17,7 +17,8 @@ This [flash Videocart](https://en.wikipedia.org/wiki/Flash_cartridge) allows gam
   
 [Getting started](#getting-started) •
 [PCB](#pcb) •
-[Videocart Case](#videocart-case)
+[Videocart Case](#videocart-case) •
+[Raspberry Pi Pico Code](#raspberry-pi-pico-code)
   
 </div>
 
@@ -26,3 +27,21 @@ This [flash Videocart](https://en.wikipedia.org/wiki/Flash_cartridge) allows gam
 # PCB
 
 # Videocart Case
+
+# Raspberry Pi Pico Code
+
+This project uses arduino-pico v1.13.1 by Earle Philhower. Installation instructions and documentation can be found on his repo: https://github.com/earlephilhower/arduino-pico
+
+Currently it works in a testing environment (hooked up to an Arduino Due simulating a channel F), but does not work on a real unit.
+
+### Project Code Tasks
+
+- [X] ~~Pass all ROMC tests on the Arduino Due~~
+- [ ] Work on a real Channel F with the game hardcoded into the Raspberry Pi Pico
+- [ ] Work on a real Channel F with the game loaded from an SD Card (hardcoded filename)
+- [ ] Work on a real Channel F with the game loaded from an SD Card (selected from a menu)
+- [ ] 1-bit SRAM support on ports 24/25
+- [X] ~~SRAM support at addresses 0x2800 - 0x2FFF~~
+- [X] ~~LED support at addresses 0x3800 - 0x38FF~~
+- [ ] Lowered power consumption to allow running the Pico from the Channel F bus
+- [ ] Interrupt support
