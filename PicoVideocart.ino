@@ -1,6 +1,8 @@
 #include <hardware/structs/iobank0.h>
 #include "Videocart12.h"
 #include "pico/multicore.h"
+#include "pico/sem.h"
+#include "hardware/structs/sio.h"
 
 constexpr uint8_t WRITE_PIN = 17;
 constexpr uint8_t PHI_PIN = 26;
@@ -13,6 +15,7 @@ constexpr uint16_t PROGRAM_START_ADDR = 0x800;  // Program address space: [0x080
 constexpr uint16_t SRAM_START_ADDR = 0x2800;    // SRAM address space: [0x2800 - 0x3000)
 constexpr uint16_t SRAM_SIZE = 0x800;           // 2K
 
+semaphore_t debugCoreSemaphore;
 
 
 // GPIO functions //
@@ -35,6 +38,9 @@ inline uint8_t read_dbus() {
 }
 
 void setup() {
+    
+    // Initialize debug semaphore
+    sem_init(&debugCoreSemaphore, 0, 1);
 
     // Initialize data bus pins
     gpio_set_dir_in_masked(0xFF << DBUS0_PIN);        // Set DBUS to input mode
@@ -400,6 +406,15 @@ void loop() {
     writeState = gpio_get(WRITE_PIN);
     if (writeState != lastWriteState) {
         if (writeState == false) { // Falling edge
+            
+            if (sem_available(&debugCoreSemaphore) == 0) {
+                sio_hw->fifo_wr = (pc0 << 16) | (pc1);
+                sio_hw->fifo_wr = (phiState << 31) | (writeState << 30) | (outputInstruction << 29) | (romc << 24) | (dbus << 16) | (dc0);
+                if (!multicore_fifo_wready()) { // FIFO full
+                    sem_release(&debugCoreSemaphore); // sem = 1
+                }
+            }
+            
             tick = 0;
             gpio_put(DBUS_OUT_CE_PIN, true);            // Disable output buffer
             gpio_set_dir_in_masked(0xFF << DBUS0_PIN);  // Set DBUS to input mode
@@ -440,27 +455,39 @@ void loop() {
 
 // Running on core1
 void setup1() {
+    sleep_ms(500);
     gpio_put(LED_BUILTIN, true);
     Serial.begin(500000);
 }
 
+__attribute__((always_inline)) inline void output_debug_info() {
+    queue_H = sio_hw->fifo_rd; // (pc0 << 16) | (pc1)
+    queue_L = sio_hw->fifo_rd; // (PHI << 31) | (WRITE << 30) | (outOp << 29) | (romc << 24) | (dbus << 16) | (dc0)
+
+    Serial.print((queue_L >> 24) & 0x1F, HEX); // ROMC, 5-bit
+    Serial.print(" ");
+    Serial.print((queue_L >> 16) & 0xFF, HEX); // DBUS, 8-bit
+    Serial.print(" ");
+    Serial.print(queue_H >> 16, HEX); // PC0, 16-bit
+    Serial.print(" ");
+    Serial.print(queue_H & 0xFFFF, HEX); // PC1, 16-bit
+    Serial.print(" ");
+    Serial.print(queue_L & 0xFFFF, HEX); // DC0, 16-bit
+    Serial.print(" ");
+    Serial.print((queue_L >> 29) & 0x1, HEX); // outOP, 1-bit
+    Serial.print(" ");
+    Serial.print((queue_L >> 30) & 0x1, HEX); // WRITE, 1-bit
+    Serial.print(" ");
+    Serial.println((queue_L >> 31) & 0x1, HEX); // PHI, 1-bit
+}
+
 void loop1() {
-    /* Quick debugging on core 1
-     * Note: Because there's no syncronization, and because serial is slow, these variables
-     * are taken at random times with no corellation. For example, the dbus printed could be
-     * taken from a different romc than the one listed prior.
-     */
-    Serial.print(romc, HEX);
-    Serial.print(" ");
-    Serial.print(dbus, HEX);
-    Serial.print(" ");
-    Serial.print(pc0, HEX);
-    Serial.print(" ");
-    Serial.print(pc1, HEX);
-    Serial.print(" ");
-    Serial.print(dc0, HEX);
-    Serial.print(" ");
-    Serial.print(outputInstruction, HEX);
-    Serial.print(" ");
-    Serial.println(tick, HEX);
+    // Quick debugging on core 1
+    if (sem_available(&debugCoreSemaphore) == 1) {
+        output_debug_info(); // romc, dbus, pc0, pc1, dc0, outOp, WRITE, PHI
+        output_debug_info();
+        output_debug_info();
+        output_debug_info();
+        sem_acquire_blocking(&debugCoreSemaphore); // sem = 0
+    }
 }
