@@ -2,7 +2,6 @@
 #include "Videocart12.h"
 #include "pico/multicore.h"
 #include "pico/sem.h"
-#include "hardware/structs/sio.h"
 
 constexpr uint8_t WRITE_PIN = 17;
 constexpr uint8_t PHI_PIN = 26;
@@ -37,7 +36,7 @@ inline uint8_t read_dbus() {
     return (gpio_get_all() >> DBUS0_PIN) & 0xFF;
 }
 
-void setup() {
+void setup1() {
     
     // Initialize debug semaphore
     sem_init(&debugCoreSemaphore, 0, 1);
@@ -93,7 +92,7 @@ void write_program_byte(uint16_t address, uint8_t data) {
 
 
 
-// Core 0 loop //
+// Core 1 loop //
 
 uint8_t tick = 0; // Clock ticks since last WRITE falling edge
 uint8_t romc = 0x1C; // IDLE
@@ -401,16 +400,27 @@ inline void execute_romc() {
       }
 }
 
-void loop() {
+bool fifo_write_successful;
+void loop1() {
 
     writeState = gpio_get(WRITE_PIN);
     if (writeState != lastWriteState) {
         if (writeState == false) { // Falling edge
             
             if (sem_available(&debugCoreSemaphore) == 0) {
-                sio_hw->fifo_wr = (pc0 << 16) | (pc1);
-                sio_hw->fifo_wr = (phiState << 31) | (writeState << 30) | (outputInstruction << 29) | (romc << 24) | (dbus << 16) | (dc0);
-                if (!multicore_fifo_wready()) { // FIFO full
+                rp2040.fifo.push_nb(
+                    (pc0 << 16) |
+                    pc1
+                );
+                fifo_write_successful = rp2040.fifo.push_nb(
+                    (phiState << 31) |
+                    (writeState << 30) |
+                    (outputInstruction << 29) |
+                    (romc << 24) |
+                    (dbus << 16) |
+                    dc0
+                );
+                if (!fifo_write_successful) { // FIFO full
                     sem_release(&debugCoreSemaphore); // sem = 1
                 }
             }
@@ -453,16 +463,15 @@ void loop() {
     lastPhiState = phiState;
 }
 
-// Running on core1
-void setup1() {
+// Running on core 0
+void setup() {
     sleep_ms(500);
-    gpio_put(LED_BUILTIN, true);
     Serial.begin(500000);
 }
 
 __attribute__((always_inline)) inline void output_debug_info() {
-    queue_H = sio_hw->fifo_rd; // (pc0 << 16) | (pc1)
-    queue_L = sio_hw->fifo_rd; // (PHI << 31) | (WRITE << 30) | (outOp << 29) | (romc << 24) | (dbus << 16) | (dc0)
+    rp2040.fifo.pop_nb(&queue_H); // (pc0 << 16) | (pc1)
+    rp2040.fifo.pop_nb(&queue_L); // (PHI << 31) | (WRITE << 30) | (outOp << 29) | (romc << 24) | (dbus << 16) | (dc0)
 
     Serial.print((queue_L >> 24) & 0x1F, HEX); // ROMC, 5-bit
     Serial.print(" ");
@@ -481,13 +490,17 @@ __attribute__((always_inline)) inline void output_debug_info() {
     Serial.println((queue_L >> 31) & 0x1, HEX); // PHI, 1-bit
 }
 
-void loop1() {
-    // Quick debugging on core 1
+void loop() {
+    // Quick debugging on core 0
     if (sem_available(&debugCoreSemaphore) == 1) {
+        gpio_put(LED_BUILTIN, true);
         output_debug_info(); // romc, dbus, pc0, pc1, dc0, outOp, WRITE, PHI
         output_debug_info();
         output_debug_info();
         output_debug_info();
+        Serial.write(0xA);
         sem_acquire_blocking(&debugCoreSemaphore); // sem = 0
+    } else {
+        gpio_put(LED_BUILTIN, false);
     }
 }
