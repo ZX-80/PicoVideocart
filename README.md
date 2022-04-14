@@ -65,13 +65,22 @@ These 3D files were provided to me by e5frog over at AtariAge
    *3D Files (Bottom / Hatch / Top Lower / Top Upper)*
 </div>
 
-# Raspberry Pi Pico Code
+# Raspberry Pi Pico Firmware
 
 This project uses arduino-pico v1.13.1 by Earle Philhower. Installation instructions and documentation can be found on his repo: https://github.com/earlephilhower/arduino-pico
 
-Currently it works in a testing environment (hooked up to an Arduino Due simulating a channel F), but does not work on a real unit.
+The board configuration is as follows:
+- Selected Board: Generic RP2040 (Raspberry Pi Pico/RP2040)
+- Flash Size: 2MB (No FS)
+- CPU Speed: 125 MHz
+- Optimize: Fast (-Ofast) (maybe slower)
+- RTTI: Disabled
+- Debug Port: Disabled
+- Debug Level: None
+- USB Stack: Pico SDK
+- Boot Stage 2: W25Q080 QSPI/4
 
-### Project Code Goals
+### Project Goals
 
 - [X] ~~Pass all ROMC tests on the Arduino Due~~
 - [X] ~~Work on a real Channel F with the game hardcoded into the Raspberry Pi Pico~~ (has a few bugs, but works)
