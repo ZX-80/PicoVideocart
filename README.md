@@ -70,15 +70,17 @@ These 3D files were provided to me by e5frog over at AtariAge
 This project uses arduino-pico v1.13.1 by Earle Philhower. Installation instructions and documentation can be found on his repo: https://github.com/earlephilhower/arduino-pico
 
 The board configuration is as follows:
-- Selected Board: Generic RP2040 (Raspberry Pi Pico/RP2040)
-- Flash Size: 2MB (No FS)
-- CPU Speed: 125 MHz
-- Optimize: Fast (-Ofast) (maybe slower)
-- RTTI: Disabled
-- Debug Port: Disabled
-- Debug Level: None
-- USB Stack: Pico SDK
-- Boot Stage 2: W25Q080 QSPI/4
+- **Selected Board:** Generic RP2040 (Raspberry Pi Pico/RP2040)
+- **Flash Size:** 2MB (No FS)
+- **CPU Speed:** 125 MHz
+- **Optimize:** Fast (-Ofast) (maybe slower)
+- **RTTI:** Disabled
+- **Debug Port:** Disabled
+- **Debug Level:** None
+- **USB Stack:** Pico SDK
+- **Boot Stage 2:** W25Q080 QSPI/4 \*
+
+\* *Sets the flash clock divider to 4, which allows the flash to operate up to 532 MHz. This is required when overclocking the Raspberry Pi Pico to 428 MHz*
 
 ### Project Goals
 
