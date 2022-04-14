@@ -74,7 +74,7 @@ Currently it works in a testing environment (hooked up to an Arduino Due simulat
 ### Project Code Goals
 
 - [X] ~~Pass all ROMC tests on the Arduino Due~~
-- [ ] Work on a real Channel F with the game hardcoded into the Raspberry Pi Pico
+- [X] ~~Work on a real Channel F with the game hardcoded into the Raspberry Pi Pico~~ (has a few bugs, but works)
 - [ ] Work on a real Channel F with the game loaded from an SD Card (hardcoded filename)
 - [ ] Work on a real Channel F with the game loaded from an SD Card (selected from a menu)
 - [X] ~~SRAM support at addresses 0x2800 - 0x2FFF~~
