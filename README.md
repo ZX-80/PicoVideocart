@@ -2,7 +2,7 @@
 
 # PicoVideocart
  
-![badge](https://badgen.net/badge/version/v0.9.0/orange?style=flat-square)
+![badge](https://badgen.net/badge/version/v0.9.2/orange?style=flat-square)
 ![badge](https://badgen.net/badge/platform/RP2040/green?style=flat-square)
 ![badge](https://badgen.net/badge/Arduino/1.8.13/blue?style=flat-square)
 
@@ -18,20 +18,29 @@ This [flash Videocart](https://en.wikipedia.org/wiki/Flash_cartridge) allows gam
 [Getting started](#getting-started) •
 [PCB](#pcb) •
 [Videocart Case](#videocart-case) •
-[Raspberry Pi Pico Code](#raspberry-pi-pico-code)
+[Raspberry Pi Pico Firmware](#raspberry-pi-pico-firmware) •
+[Images](#images)
   
 </div>
 
 # Getting Started
+
+**Loading Games to the Flashcart**
+
+- This flashcart uses a micro SD card for storage, which makes it convenient to add and removes games. However, the micro SD card must be formatted as either FAT16, FAT32, or exFAT (recommended). Once formatted, simply place your game files (should end in `.bin`) onto the SD card and insert it into the flashcart.
+
+**Using the Multimenu**
+
+- The multimenu is still in development at this time
 
 # PCB
 
 ## Revision 1A
 
 <div align = "center">
-   <img width="80%" alt="image" src="https://user-images.githubusercontent.com/44975876/162845450-59c9edab-7b7b-4587-b028-241cebfad19d.png">
+   <img width="80%" alt="image" src="https://user-images.githubusercontent.com/44975876/163598001-729f35da-b6d8-4e2f-ba2b-ddcd349e3816.png">
  
-   *3D View (Front / Back)*
+   *3D View (Back / Front)*
 </div>
 
 <div align = "center">
@@ -85,7 +94,7 @@ The board configuration is as follows:
 ### Project Goals
 
 - [X] ~~Pass all ROMC tests on the Arduino Due~~
-- [X] ~~Work on a real Channel F with the game hardcoded into the Raspberry Pi Pico~~ (has a few bugs, but works)
+- [X] ~~Work on a real Channel F with the game hardcoded into the Raspberry Pi Pico~~
 - [ ] Work on a real Channel F with the game loaded from an SD Card (hardcoded filename)
 - [ ] Work on a real Channel F with the game loaded from an SD Card (selected from a menu)
 - [X] ~~SRAM support at addresses 0x2800 - 0x2FFF~~
@@ -97,3 +106,21 @@ The board configuration is as follows:
     - [ ] programmable interrupt vector address [0x0C/0x0D]
     - [ ] programmable timer [0x0E]
     - [ ] interrupt control [0x0F]
+
+
+# Images
+
+<div align = "center">
+  <img width="90%" src="https://user-images.githubusercontent.com/44975876/163595652-a342427b-8f57-4a17-bc1d-d46ca3924447.png">
+
+  *A partially constructed rev 1A board (missing SD card, interrupt components, and 5V diode) with the 3D printed case*
+  
+  <img width="90%" src="https://user-images.githubusercontent.com/44975876/163595785-561fc3ba-3969-4d96-9882-f828548ac4f7.png">
+
+  *A demonstration of CCtro.bin (by [Frog](https://www.youtube.com/watch?v=X0mVxEY4aD0)) & boxingv1.bin (by Mikebloke from AtariAge) running on a real Channel F (graphical glitches are from a bad Channel F, not the flashcart)*
+ 
+  <img width="90%" src="https://user-images.githubusercontent.com/44975876/163596874-a31e1824-4e23-4a60-8353-af2ef9235165.png">
+ 
+  *A demonstration of Videocart 2 running on a real Channel F (graphical glitches are from a bad Channel F, not the flashcart)*
+
+</div>
