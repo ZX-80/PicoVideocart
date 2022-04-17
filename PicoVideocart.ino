@@ -519,5 +519,45 @@ void loop1() {
 }
 
 // Running on core 0
-void setup() {};
+
+#include <SPI.h>
+#include <SD.h>
+
+constexpr uint8_t serialClock = 2;
+constexpr uint8_t transmit = 3;
+constexpr uint8_t receive = 4;
+constexpr uint8_t chipSelect = 5;
+
+void setup() {
+
+    // setup SD card pins
+    SPI.setSCK(serialClock);
+    SPI.setTX(transmit);
+    SPI.setRX(receive);
+    SPI.setCS(chipSelect);
+
+    // Load game.bin    
+    while (!SD.begin(chipSelect)) { // wait for SD card
+        sleep_ms(500);
+    }
+    
+    File romFile = SD.open("game.bin");
+    if (romFile) {
+        gpio_put(LED_BUILTIN, true); // Turn on LED to indicate success
+        romFile.read((uint8_t*) (program_rom + 0x800), min(romFile.size(), 0xF7FF)); // Read up to 62K into program_rom
+        romFile.close();
+    } else {
+        // Blink LED 3 times to signify failure
+        gpio_put(LED_BUILTIN, true);
+        sleep_ms(500);
+        gpio_put(LED_BUILTIN, false);
+        sleep_ms(1000);
+        gpio_put(LED_BUILTIN, true);
+        sleep_ms(500);
+        gpio_put(LED_BUILTIN, false);
+        sleep_ms(1000);
+        gpio_put(LED_BUILTIN, true);
+    }
+};
+
 void loop() {};
