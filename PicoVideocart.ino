@@ -47,7 +47,7 @@ constexpr uint16_t SRAM_SIZE = 0x800;           // 2K
  * \param out true for out, false for in
  * \param value If false clear the GPIO, otherwise set it.
  */
-__attribute__((always_inline)) inline void gpio_init_val(uint8_t gpio, bool out, bool value) {
+__force_inline void gpio_init_val(uint8_t gpio, bool out, bool value) {
     gpio_put(gpio, value);
     gpio_set_dir(gpio, out);
     gpio_set_function(gpio, GPIO_FUNC_SIO);
@@ -57,7 +57,7 @@ __attribute__((always_inline)) inline void gpio_init_val(uint8_t gpio, bool out,
  *
  * \return 5-bit ROMC bus value
  */
-__attribute__((always_inline)) inline uint8_t read_romc() {
+__force_inline uint8_t read_romc() {
     return (gpio_get_all() >> ROMC0_PIN) & 0x1F;
 }
 
@@ -65,7 +65,7 @@ __attribute__((always_inline)) inline uint8_t read_romc() {
  *
  * \return 8-bit data bus value
  */
-__attribute__((always_inline)) inline uint8_t read_dbus() {
+__force_inline uint8_t read_dbus() {
     return (gpio_get_all() >> DBUS0_PIN) & 0xFF;
 }
 
@@ -140,11 +140,11 @@ uint8_t sram[SRAM_SIZE];
  * \param address The location of the data
  * \return The content of the memory address
  */
-__attribute__((always_inline)) inline uint8_t read_program_byte(uint16_t address) {
+__force_inline uint8_t read_program_byte(uint16_t address) {
     return program_rom[address];
 }
 /*
-__attribute__((always_inline)) inline uint8_t read_program_byte(uint16_t address) {
+__force_inline uint8_t read_program_byte(uint16_t address) {
     if (SRAM_START_ADDR <= address && address < (SRAM_START_ADDR + SRAM_SIZE) && sramPresent) {
         return sram[address - SRAM_START_ADDR];
     } else {
@@ -157,7 +157,7 @@ __attribute__((always_inline)) inline uint8_t read_program_byte(uint16_t address
  * \param address The location to write the data
  * \param data The byte to be written
  */
-__attribute__((always_inline)) inline void write_program_byte(uint16_t address, uint8_t data) {
+__force_inline void write_program_byte(uint16_t address, uint8_t data) {
     if (SRAM_START_ADDR <= address && address < (SRAM_START_ADDR + SRAM_SIZE)) {
         sramPresent = true;
         sram[address - SRAM_START_ADDR] = data;
@@ -175,7 +175,7 @@ uint16_t pc1 = 0x00;
 uint16_t dc0 = 0x00;
 
 /*! \brief Process ROMC instruction */
-__attribute__((always_inline)) inline void execute_romc() { 
+__force_inline void execute_romc() { 
     switch (romc) {
         case 0x00:
             /*
@@ -459,7 +459,7 @@ __attribute__((always_inline)) inline void execute_romc() {
       }
 }
 
-__attribute__((always_inline)) inline void write_dbus(uint8_t value, uint16_t addr_source) {
+__force_inline void write_dbus(uint8_t value, uint16_t addr_source) {
     if (addr_source >= PROGRAM_START_ADDR && addr_source < 0x1000) {
         dbus = value;
         gpio_put(DBUS_IN_CE_PIN, true);              // Disable input buffer
@@ -470,7 +470,7 @@ __attribute__((always_inline)) inline void write_dbus(uint8_t value, uint16_t ad
     }
 }
 
-void loop1() {
+void __not_in_flash_func(loop1)() {
     for (;;) {
         while(gpio_get(WRITE_PIN)==1) { //0 - 6 ns / 2.5 cycles latency
             tight_loop_contents();
@@ -488,33 +488,6 @@ void loop1() {
         dbus = read_dbus();
         romc = read_romc();
         execute_romc();
-            
-            // 425 cycles/WriteHigh @ 425 MHz, duh
-            /* Most complex is (20 steps??? @ 2.4 ns/cycle):
-            
-                dbus = (sio_hw->gpio_in >> 6) & 0xFF;
-                romc = (sio_hw->gpio_in >> 18) & 0x1F;
-                goto jump_table[romc]
-
-                ...
-
-                case_0x11:
-                if (pc0 >= 0x800 && pc0 < 0x1000) {
-                    dbus = program_rom[pc0];   
-                    sio_hw->gpio_set = 0x8000;     // Disable input buffer
-                    sio_hw->gpio_clr = 0x3FC0;     // Write to DBUS
-                    sio_hw->gpio_set = dbus << 6;
-                    sio_hw->gpio_oe_set = 0x3FC0;  // Set DBUS to output mode
-                    sio_hw->gpio_clr = 0x4000;     // Enable output buffer
-                }
-                dc0 = (dc0 & 0x00ff) | (dbus << 8);
-                goto end
-
-                ...
-
-                end:
-
-            */
     }
 }
 
