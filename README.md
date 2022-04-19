@@ -95,7 +95,7 @@ The board configuration is as follows:
 
 - [X] ~~Pass all ROMC tests on the Arduino Due~~
 - [X] ~~Work on a real Channel F with the game hardcoded into the Raspberry Pi Pico~~
-- [ ] Work on a real Channel F with the game loaded from an SD Card (hardcoded filename)
+- [X] ~~Work on a real Channel F with the game loaded from an SD Card (hardcoded filename)~~
 - [ ] Work on a real Channel F with the game loaded from an SD Card (selected from a menu)
 - [X] ~~SRAM support at addresses 0x2800 - 0x2FFF~~
 - [X] ~~LED support at addresses 0x3800 - 0x38FF~~
@@ -121,6 +121,6 @@ The board configuration is as follows:
  
   <img width="90%" src="https://user-images.githubusercontent.com/44975876/163596874-a31e1824-4e23-4a60-8353-af2ef9235165.png">
  
-  *A demonstration of Videocart 2 running on a real Channel F (graphical glitches are from a bad Channel F, not the flashcart)*
+  *A demonstration of Videocart 2 running off the flashcart on a real Channel F (graphical glitches are from a bad Channel F, not the flashcart)*
 
 </div>
