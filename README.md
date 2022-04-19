@@ -2,11 +2,11 @@
 
 # PicoVideocart
  
-![badge](https://badgen.net/badge/version/v0.9.2/orange?style=flat-square)
+![badge](https://badgen.net/badge/version/v0.9.3/orange?style=flat-square)
 ![badge](https://badgen.net/badge/platform/RP2040/green?style=flat-square)
 ![badge](https://badgen.net/badge/Arduino/1.8.13/blue?style=flat-square)
 
-This [flash Videocart](https://en.wikipedia.org/wiki/Flash_cartridge) allows games to be loaded from an SD card and played on a real Fairchild Channel F. It's powered by a Raspberry Pi Pico, as well as two 74LVC245 ICs (5V -> 3.3V) and a 74HCT541 IC (3.3V -> 5V) for level conversion. This project is currently in development.
+The Pico Videocart is an open source [flash cartridge](https://en.wikipedia.org/wiki/Flash_cartridge) for the Fairchild Channel F. It's powered by the Raspberry Pi Pico, and allows games to be selected, and loaded from an SD card, using a multimenu. It supports both official games, and homebrew. This project is currently in development.
 
   
 <p align = "center">
@@ -27,7 +27,7 @@ This [flash Videocart](https://en.wikipedia.org/wiki/Flash_cartridge) allows gam
 
 **Loading Games to the Flashcart**
 
-- This flashcart uses a micro SD card for storage, which makes it convenient to add and removes games. However, the micro SD card must be formatted as either FAT16, FAT32, or exFAT (recommended). Once formatted, simply place your game files (should end in `.bin`) onto the SD card and insert it into the flashcart.
+- This flashcart uses a micro SD card for storage, which makes it convenient to add and removes games. However, the micro SD card must be formatted as either FAT16 or FAT32 (recommended). Once formatted, simply place your game files (should end in `.bin`) onto the SD card and insert it into the flashcart.
 
 **Using the Multimenu**
 
@@ -35,40 +35,34 @@ This [flash Videocart](https://en.wikipedia.org/wiki/Flash_cartridge) allows gam
 
 # PCB
 
+The flashcart is essentially an emulator for an enhanced 3853 Static Memory Interface using SD cards instead of ROM ICs. A Raspberry Pi Pico was chosen due to its relativly low cost, high speed (428 MHz), large memory (264KB on-chip SRAM, 2MB on-board QSPI Flash), and because it has 2 cores. Unfortunatly, the Pico runs at 3.3V, whereas the Channel F bus is 5V. As such, nearly all components used are for level conversion.
+
+- Two 74LVC245 ICs serve as 5V --> 3.3V level shifters
+- A 74HCT541 IC serves as a 3.3V --> 5V level shifter
+- A simple NPN transistor switching circuit is used to form a 5V open-collector output controlled by a 3.3V pin
+
+Finally, a 1N5817 Schottky diode is connected to the Vsys pin of the Pico to allow it to run from the Channel F without external power.
+
 ## Revision 1A
 
-<div align = "center">
-   <img width="80%" alt="image" src="https://user-images.githubusercontent.com/44975876/163598001-729f35da-b6d8-4e2f-ba2b-ddcd349e3816.png">
- 
-   *3D View (Back / Front)*
-</div>
+This is the first prototype PCB. It makes heavy use of DIP componants and breakout boards to simplify manufacturing.
 
 <div align = "center">
+   <img width="90%" src="https://user-images.githubusercontent.com/44975876/163595652-a342427b-8f57-4a17-bc1d-d46ca3924447.png">
+
+   *A partially constructed board (missing SD card, interrupt components, and 5V diode) with the 3D printed case*
+ 
    <img width="80%" alt="image" src="https://user-images.githubusercontent.com/44975876/162845355-da4104ff-fc61-4df0-86b5-71c5d07db3e8.png">
  
    *Schematic*
 </div>
-
-### BOM
-
-| Designator | Designation | Package                                                     | Quantity | Notes                                                        |
-| ---------- | ----------- | ----------------------------------------------------------- | -------- | ------------------------------------------------------------ |
-| Q1         | 2N3904      | TO-92 <br />Inline                                          | 1        |                                                              |
-| U1         | 74HCT541    | DIP-20<br />W7.62mm                                         | 1        | 3.3V --> 5V conversion                                       |
-| U2-3       | 74LVC245    | DIP-20<br />W7.62mm                                         | 2        | 5V --> 3.3V conversion                                       |
-| U4         | RPi Pico    | RPi Pico SMD TH                                             | 1        |                                                              |
-| C1-3       | 0.1uF       | C_Disc<br />D9.0mm x W2.5mm x P5.00mm                       | 3        |                                                              |
-| R1-4       | 10K         | R Axial DIN 0207 Horizontal<br />L6.3mm x D2.5mm x P10.16mm | 4        |                                                              |
-| D1         | D Schottky  | D DO-15 Horizontal<br />P12.70mm                            | 1        |                                                              |
-|            | ADA254      | 1x08 BIG                                                    | 1        | Micro SD Card breakout                                       |
-| J1         | Pin Headers | PinHeader 1x5 Horizontal<br />P2.54mm                       | 1        | A direct connection to the Pico's SWD Interface and Serial Interface (UART0) for debugging |
 
 
 # Videocart Case
 
 These 3D files were provided to me by e5frog over at AtariAge
 
-<div align = "center">
+<div align = "center"> 
    <img width="80%" alt="image" src="https://user-images.githubusercontent.com/44975876/162847231-be1cd817-4aaf-4c2b-9cb1-2c3dfbe0539b.png">
  
    *3D Files (Bottom / Hatch / Top Lower / Top Upper)*
@@ -111,10 +105,6 @@ The board configuration is as follows:
 # Images
 
 <div align = "center">
-  <img width="90%" src="https://user-images.githubusercontent.com/44975876/163595652-a342427b-8f57-4a17-bc1d-d46ca3924447.png">
-
-  *A partially constructed rev 1A board (missing SD card, interrupt components, and 5V diode) with the 3D printed case*
-  
   <img width="90%" src="https://user-images.githubusercontent.com/44975876/163595785-561fc3ba-3969-4d96-9882-f828548ac4f7.png">
 
   *A demonstration of CCtro.bin (by [Frog](https://www.youtube.com/watch?v=X0mVxEY4aD0)) & boxingv1.bin (by Mikebloke from AtariAge) running on a real Channel F (graphical glitches are from a bad Channel F, not the flashcart)*
