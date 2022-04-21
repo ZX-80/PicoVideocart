@@ -1,5 +1,5 @@
 /* 
-  morse.h - A library for flashing Morse code through the built in LED. Useful for debugging with more helpful error codes.
+  morse.h - A library for flashing Morse code through the built in LED.
   Created April 20, 2022 by Jefferson A.
   Released into the public domain.
 
@@ -34,10 +34,7 @@
 class Morse {
     public:
         Morse() {};
-        void blink(uint8_t count) { // expects a value between 1 & 7
-            this->parseMorse(String('9' + min(count + 1, 8)));
-        }
-        void parseMorse(String message) {
+        void print(String message) {
             for(char letter : message) {
                 letter = toupper(letter);
                 if ('0' <= letter && letter <= 'Z') {
