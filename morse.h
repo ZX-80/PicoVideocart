@@ -34,7 +34,7 @@
 class Morse {
     public:
         Morse() {};
-        void print(String message) {
+        static void print(String message) {
             for(char letter : message) {
                 letter = toupper(letter);
                 if ('0' <= letter && letter <= 'Z') {
