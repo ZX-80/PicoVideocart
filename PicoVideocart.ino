@@ -10,7 +10,7 @@
  *   - 1x 74HCT541 IC (for 3.3V -> 5V level conversion)
  * See the included schematic for wiring details
  * 
- * Created April 2022 by 3DMAZE
+ * Created April 2022 by Jefferson A. (3DMAZE at AtariAge)
  */
 
 #include "fake_stdlib.h"
