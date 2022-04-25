@@ -99,19 +99,11 @@ void setup1() {
     gpio_init_val(DBUS_IN_CE_PIN, GPIO_OUT, false);
     gpio_init_val(LED_BUILTIN, GPIO_OUT, true);
     
-    /*
-     * Default system clock is 125MHz.
-     * USB+UART+GPIO works fine for 250MHz.
-     * You can overclock to >=420MHz with GPIO still working.
-     * My first 3 Picos maxed out with working GPIO at 426/428/436MHz.
-     * I was able to run Pico at 10MHz, but all frequencies below did not work.
-     * 
-     * In case you overclock with >400MHz, you can produce USB output by first setting system clock to <=250MHz, then output, finally switch back to >400MHz.
-     */
+    // Overclock Pico to 428 MHz @ 1.3 V
+    // 10 MHz <= system clock <= 426 MHz to 436 MHz
     vreg_set_voltage(VREG_VOLTAGE_1_30);
     sleep_ms(1);
-    if (!set_sys_clock_khz(428000, false)) { // Works: 428 MHz @ 1.3 V
-        // Blink LED 3 times to signify failure
+    if (!set_sys_clock_khz(428000, false)) { // Overclocking failed
         gpio_put(LED_BUILTIN, false);
         sleep_ms(1000);
         gpio_put(LED_BUILTIN, true);
@@ -123,7 +115,7 @@ void setup1() {
         gpio_put(LED_BUILTIN, false);
         sleep_ms(1000);
         gpio_put(LED_BUILTIN, true);
-    } else {
+    } else {  // Overclocking succeeded
         gpio_put(LED_BUILTIN, false);
     }
 }
@@ -143,14 +135,6 @@ uint8_t sram[SRAM_SIZE];
 __force_inline uint8_t read_program_byte(uint16_t address) {
     return program_rom[address];
 }
-/*
-__force_inline uint8_t read_program_byte(uint16_t address) {
-    if (SRAM_START_ADDR <= address && address < (SRAM_START_ADDR + SRAM_SIZE) && sramPresent) {
-        return sram[address - SRAM_START_ADDR];
-    } else {
-        return program_rom[address - PROGRAM_START_ADDR];
-    }
-}*/
 
 /*! \brief Set the content of the memory address in the program ROM
  *
@@ -173,6 +157,21 @@ uint8_t dbus = 0x00;
 uint16_t pc0 = 0x00;
 uint16_t pc1 = 0x00;
 uint16_t dc0 = 0x00;
+
+/*! \brief Write a value to the data bus
+ *
+ * \param value The value to write
+ * \param addr_source The address of the values source
+ */
+__force_inline void write_dbus(uint8_t value, uint16_t addr_source) {
+    if (addr_source >= PROGRAM_START_ADDR && addr_source < 0x1000) {
+        gpio_put(DBUS_IN_CE_PIN, true);              // Disable input buffer
+        gpio_clr_mask(0xFF << DBUS0_PIN);            // Write to DBUS
+        gpio_set_mask((dbus = value) << DBUS0_PIN);
+        gpio_set_dir_out_masked(0xFF << DBUS0_PIN);  // Set DBUS to output mode
+        gpio_put(DBUS_OUT_CE_PIN, false);            // Enable output buffer
+    }
+}
 
 /*! \brief Process ROMC instruction */
 __force_inline void execute_romc() { 
@@ -459,17 +458,6 @@ __force_inline void execute_romc() {
       }
 }
 
-__force_inline void write_dbus(uint8_t value, uint16_t addr_source) {
-    if (addr_source >= PROGRAM_START_ADDR && addr_source < 0x1000) {
-        dbus = value;
-        gpio_put(DBUS_IN_CE_PIN, true);              // Disable input buffer
-        gpio_clr_mask(0xFF << DBUS0_PIN);            // Write to DBUS
-        gpio_set_mask(dbus << DBUS0_PIN);
-        gpio_set_dir_out_masked(0xFF << DBUS0_PIN);  // Set DBUS to output mode
-        gpio_put(DBUS_OUT_CE_PIN, false);            // Enable output buffer
-    }
-}
-
 void __not_in_flash_func(loop1)() {
     for (;;) {
         while(gpio_get(WRITE_PIN)==1) { //0 - 6 ns / 2.5 cycles latency
@@ -509,18 +497,22 @@ void setup() {
     SPI.setRX(receive);
     SPI.setCS(chipSelect);
 
-    // Load game.bin    
+    // Wait for a valid SD card   
     while (!SD.begin(chipSelect)) { // wait for SD card
         sleep_ms(500);
     }
     
-    File romFile = SD.open("game.bin");
+    // Open the first file found on the SD card
+    root = SD.open("/");
+    do {
+        File romFile = root.openNextFile()
+    } while (romFile.isDirectory());
+
     if (romFile) {
         gpio_put(LED_BUILTIN, true); // Turn on LED to indicate success
         romFile.read((uint8_t*) (program_rom + 0x800), min(romFile.size(), 0xF7FF)); // Read up to 62K into program_rom
         romFile.close();
-    } else {
-        // Blink LED 3 times to signify failure
+    } else { // SD card is empty
         gpio_put(LED_BUILTIN, true);
         sleep_ms(500);
         gpio_put(LED_BUILTIN, false);
