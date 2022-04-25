@@ -26,6 +26,8 @@
 #include "hardware/gpio.h"
 #include "hardware/vreg.h"
 
+#include "src/morse.h"
+
 constexpr uint8_t WRITE_PIN = 17;
 constexpr uint8_t PHI_PIN = 26;
 constexpr uint8_t DBUS0_PIN = 6;
@@ -104,19 +106,8 @@ void setup1() {
     vreg_set_voltage(VREG_VOLTAGE_1_30);
     sleep_ms(1);
     if (!set_sys_clock_khz(428000, false)) { // Overclocking failed
-        gpio_put(LED_BUILTIN, false);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, true);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, false);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, true);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, false);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, true);
-    } else {  // Overclocking succeeded
-        gpio_put(LED_BUILTIN, false);
+        Morse::print("OCLK");
+        panic("FATAL: Overclock returned unsuccessful");
     }
 }
 
@@ -512,16 +503,9 @@ void setup() {
         gpio_put(LED_BUILTIN, true); // Turn on LED to indicate success
         romFile.read((uint8_t*) (program_rom + 0x800), min(romFile.size(), 0xF7FF)); // Read up to 62K into program_rom
         romFile.close();
-    } else { // SD card is empty
-        gpio_put(LED_BUILTIN, true);
-        sleep_ms(500);
-        gpio_put(LED_BUILTIN, false);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, true);
-        sleep_ms(500);
-        gpio_put(LED_BUILTIN, false);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, true);
+    } else {
+        Morse::print("SD0");
+        panic("FATAL: SD card is empty");
     }
 };
 
