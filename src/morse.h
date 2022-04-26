@@ -35,10 +35,9 @@ class Morse {
     public:
         Morse() {};
         static void print(String message) {
-            for(char letter : message) {
-                letter = toupper(letter);
-                if ('0' <= letter && letter <= 'Z') {
-                    uint8_t beep_code = internationalMorseCodeMap[letter - '0'];
+            for(char character : message) {
+                if (isdigit(character) || isalpha(character)) {
+                    uint8_t beep_code = internationalMorseCodeMap[toupper(character) - '0'];
                     do {
                         digitalWrite(LED_BUILTIN, HIGH);
                         delay((beep_code & 1) ? DASH : DOT);
@@ -46,7 +45,7 @@ class Morse {
                         delay(SYMBOL_SPACE);
                     } while ((beep_code >>= 1) != 1);    
                     delay(LETTER_SPACE);
-                } else if (letter == ' ') {
+                } else if (character == ' ') {
                     delay(WORD_SPACE);     
                 }     
             }
@@ -61,8 +60,8 @@ class Morse {
         
         //1 = dash symbol, 0 = dot symbol, MSB = end symbol. Read right to left
         static constexpr uint8_t internationalMorseCodeMap[] = {
-            0x3f, 0x3e, 0x3c, 0x38, 0x30, 0x20, 0x21, 0x23, 0x27, 0x2f, 0x02, 0x04, 0x08,
-            0x10, 0x20, 0x40, 0x80, 0x06, 0x11, 0x15, 0x09, 0x02, 0x14, 0x0b, 0x10, 0x04,
+            0x3f, 0x3e, 0x3c, 0x38, 0x30, 0x20, 0x21, 0x23, 0x27, 0x2f, 0x02, 0x02, 0x02,
+            0x02, 0x02, 0x02, 0x02, 0x06, 0x11, 0x15, 0x09, 0x02, 0x14, 0x0b, 0x10, 0x04,
             0x1e, 0x0d, 0x12, 0x07, 0x05, 0x0f, 0x16, 0x1b, 0x0a, 0x08, 0x03, 0x0c, 0x18,
             0x0e, 0x19, 0x1d, 0x13
         };
