@@ -16,9 +16,8 @@ The Pico Videocart is an open source [flash cartridge](https://en.wikipedia.org/
 *\*PCB KiCad mock-up*
   
 [Getting started](#getting-started) •
-[PCB](#pcb) •
-[Videocart Case](#videocart-case) •
-[Raspberry Pi Pico Firmware](#raspberry-pi-pico-firmware) •
+[Hardware](#hardware) •
+[Firmware](#firmware) •
 [Images](#images)
   
 </div>
@@ -33,32 +32,13 @@ The Pico Videocart is an open source [flash cartridge](https://en.wikipedia.org/
 
 - The multimenu is still in development at this time
 
-# PCB
+# Hardware
 
-The flashcart is essentially an emulator for an enhanced 3853 Static Memory Interface using SD cards instead of ROM ICs. A Raspberry Pi Pico was chosen due to its relativly low cost, high speed (428 MHz), large memory (264KB on-chip SRAM, 2MB on-board QSPI Flash), and because it has 2 cores. Unfortunatly, the Pico runs at 3.3V, whereas the Channel F bus is 5V. As such, nearly all components used are for level conversion.
+The flashcart is essentially an emulator for an enhanced 3853 Static Memory Interface using SD cards instead of ROM ICs. A Raspberry Pi Pico was chosen due to its relativly low cost, high speed (428 MHz), large memory (264KB on-chip SRAM, 2MB on-board QSPI Flash), and because it has 2 cores.
 
-- Two 74LVC245 ICs serve as 5V --> 3.3V level shifters
-- A 74HCT541 IC serves as a 3.3V --> 5V level shifter
-- A simple NPN transistor switching circuit is used to form a 5V open-collector output controlled by a 3.3V pin
+More information (and schematics) can be found in the [Schematics directory](Schematics)
 
-Finally, a 1N5817 Schottky diode is connected to the Vsys pin of the Pico to allow it to run from the Channel F without external power.
-
-## Revision 1A
-
-This is the first prototype PCB. It makes heavy use of DIP componants and breakout boards to simplify manufacturing.
-
-<div align = "center">
-   <img width="90%" src="https://user-images.githubusercontent.com/44975876/163595652-a342427b-8f57-4a17-bc1d-d46ca3924447.png">
-
-   *A partially constructed board (missing SD card, interrupt components, and 5V diode) with the 3D printed case*
- 
-   <img width="80%" alt="image" src="https://user-images.githubusercontent.com/44975876/162845355-da4104ff-fc61-4df0-86b5-71c5d07db3e8.png">
- 
-   *Schematic*
-</div>
-
-
-# Videocart Case
+## Videocart Case
 
 These 3D files were provided to me by e5frog over at AtariAge
 
@@ -68,7 +48,7 @@ These 3D files were provided to me by e5frog over at AtariAge
    *3D Files (Bottom / Hatch / Top Lower / Top Upper)*
 </div>
 
-# Raspberry Pi Pico Firmware
+# Firmware
 
 This project uses arduino-pico v1.13.1 by Earle Philhower. Installation instructions and documentation can be found on his repo: https://github.com/earlephilhower/arduino-pico
 
