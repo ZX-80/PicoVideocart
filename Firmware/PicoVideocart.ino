@@ -1,32 +1,23 @@
 /*
- * Pico Videocart
+ * Pico Videocart Firmware (rev 1A)
  *
  * This flash Videocart allows games to be loaded from an SD card and played
- * on a Fairchild Channel F. 
- * 
- * The circuit uses:
- *   - 1x Raspberry Pi Pico
- *   - 2x 74LVC245 ICs (for 5V -> 3.3V level conversion) 
- *   - 1x 74HCT541 IC (for 3.3V -> 5V level conversion)
- * See the included schematic for wiring details
+ * on a Fairchild Channel F.
  * 
  * Created April 2022 by Jefferson A. (3DMAZE at AtariAge)
  */
 
-#include "fake_stdlib.h"
+#include <pico/sem.h>
+#include <pico/multicore.h>
+#include <hardware/gpio.h>
+#include <hardware/vreg.h>
+#include <hardware/structs/sio.h>
 #include <hardware/structs/iobank0.h>
 
-//#include "CCtro.h"
-//#include "Videocart02.h"
-#include "boxingv1.h"
-
-#include "pico/multicore.h"
-#include "pico/sem.h"
-#include "hardware/structs/sio.h"
-#include "hardware/gpio.h"
-#include "hardware/vreg.h"
-
 #include "src/morse.h"
+#include "Videocart02.h"
+
+
 
 constexpr uint8_t WRITE_PIN = 17;
 constexpr uint8_t PHI_PIN = 26;
