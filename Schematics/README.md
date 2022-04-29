@@ -69,6 +69,6 @@ It consists of 4 main groups
 <div align = "center">
    <img width="90%" src="https://user-images.githubusercontent.com/44975876/163595652-a342427b-8f57-4a17-bc1d-d46ca3924447.png">
 
-   *A partially constructed board (missing SD card, interrupt components, and 5V diode) with the 3D printed case*
+   *A partially constructed rev 1A board (missing SD card, interrupt components, and 5V diode) with the 3D printed case*
   
 </div>
