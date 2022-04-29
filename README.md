@@ -50,37 +50,17 @@ These 3D files were provided to me by e5frog over at AtariAge
 
 # Firmware
 
-This project uses arduino-pico v1.13.1 by Earle Philhower. Installation instructions and documentation can be found on his repo: https://github.com/earlephilhower/arduino-pico
+As mentioned, the firmware essentially emulates a 3853 Static Memory Interface IC, while adding a few extra features. Such as:
+- An SD card multi-menu
+- FRAM (for high scores and saves)
+- SRAM (R/W memory)
+- An LED (controlled in software)
+- Extra IO ports
+  - Timers
+  - 1-bit SRAM
+  - Interrupts
 
-The board configuration is as follows:
-- **Selected Board:** Generic RP2040 (Raspberry Pi Pico/RP2040)
-- **Flash Size:** 2MB (No FS)
-- **CPU Speed:** 125 MHz
-- **Optimize:** Fast (-Ofast) (maybe slower)
-- **RTTI:** Disabled
-- **Debug Port:** Disabled
-- **Debug Level:** None
-- **USB Stack:** Pico SDK
-- **Boot Stage 2:** W25Q080 QSPI/4 \*
-
-\* *Sets the flash clock divider to 4, which allows the flash to operate up to 532 MHz. This is required when overclocking the Raspberry Pi Pico to 428 MHz*
-
-### Project Goals
-
-- [X] ~~Pass all ROMC tests on the Arduino Due~~
-- [X] ~~Work on a real Channel F with the game hardcoded into the Raspberry Pi Pico~~
-- [X] ~~Work on a real Channel F with the game loaded from an SD Card (hardcoded filename)~~
-- [ ] Work on a real Channel F with the game loaded from an SD Card (selected from a menu)
-- [X] ~~SRAM support at addresses 0x2800 - 0x2FFF~~
-- [X] ~~LED support at addresses 0x3800 - 0x38FF~~
-- [ ] Lowered power consumption to allow running the Pico from the Channel F bus (70 mA max)
-- [ ] I/O ports
-  - [ ] 1-bit SRAM support [0x18/0x19]
-  - [ ] Emulate 3853 SMI ports
-    - [ ] programmable interrupt vector address [0x0C/0x0D]
-    - [ ] programmable timer [0x0E]
-    - [ ] interrupt control [0x0F]
-
+More information (and the firmware) can be found in the [Firmware directory](Firmware)
 
 # Images
 
@@ -88,9 +68,4 @@ The board configuration is as follows:
   <img width="90%" src="https://user-images.githubusercontent.com/44975876/163595785-561fc3ba-3969-4d96-9882-f828548ac4f7.png">
 
   *A demonstration of CCtro.bin (by [Frog](https://www.youtube.com/watch?v=X0mVxEY4aD0)) & boxingv1.bin (by Mikebloke from AtariAge) running on a real Channel F (graphical glitches are from a bad Channel F, not the flashcart)*
- 
-  <img width="90%" src="https://user-images.githubusercontent.com/44975876/163596874-a31e1824-4e23-4a60-8353-af2ef9235165.png">
- 
-  *A demonstration of Videocart 2 running off the flashcart on a real Channel F (graphical glitches are from a bad Channel F, not the flashcart)*
-
 </div>
