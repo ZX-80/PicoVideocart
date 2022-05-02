@@ -107,8 +107,10 @@ void setup1() {
 
 // Program ROM functions //
 
-uint8_t sram[SRAM_SIZE];
-uint8_t memory_type_LUT[VIDEOCART_SIZE];
+uint8_t sram_base[SRAM_SIZE];
+uint8_t *sram = &sram_base[-SRAM_START_ADDR]; // Avoids the need to subtract SRAM_START_ADDR from the address on each access
+uint8_t memory_type_LUT_base[VIDEOCART_SIZE];
+uint8_t *memory_type_LUT = &memory_type_LUT_base[-VIDEOCART_START_ADDR];
 enum class memory_t {
     sram,  // Default to R/W memory
     rom,
@@ -122,9 +124,9 @@ enum class memory_t {
  * \return The content of the memory address
  */
 __force_inline uint8_t read_program_byte(uint16_t address) {
-    switch (memory_type_LUT[address - VIDEOCART_START_ADDR]) {
+    switch (memory_type_LUT[address]) {
         case memory_t::sram:
-            return sram[address - SRAM_START_ADDR];
+            return sram[address];
         //case memory_t::fram:
             // TODO: implement FRAM read
         case memory_t::rom:
@@ -139,9 +141,9 @@ __force_inline uint8_t read_program_byte(uint16_t address) {
  * \param data The byte to be written
  */
 __force_inline void write_program_byte(uint16_t address, uint8_t data) {
-    switch (memory_type_LUT[address - VIDEOCART_START_ADDR]) {
+    switch (memory_type_LUT[address]) {
         case memory_t::sram:
-            sram[address - SRAM_START_ADDR] = data;
+            sram[address] = data;
             break;
         //case memory_t::fram:
             // TODO: implement FRAM write
