@@ -25,19 +25,13 @@ constexpr uint8_t DBUS0_PIN = 6;
 constexpr uint8_t ROMC0_PIN = 18;
 constexpr uint8_t DBUS_IN_CE_PIN = 15;
 constexpr uint8_t DBUS_OUT_CE_PIN = 14;
+                                                  // BIOS address space:      [0x00000 - 0x00800)
+constexpr uint16_t VIDEOCART_START_ADDR = 0x800;  // Videocart address space: [0x00800 - 0x10000)
+constexpr uint16_t VIDEOCART_SIZE = 0xF800;       // 62K
+constexpr uint16_t SRAM_START_ADDR = 0x800;       // SRAM address space:      [0x00800 - 0x10000)
+constexpr uint16_t SRAM_SIZE = 0xF800;            // 62K
 
-constexpr uint16_t PROGRAM_START_ADDR = 0x800;  // Program address space: [0x0800 - 0x10000)
-constexpr uint16_t MT_START_ADDR = 0x800;     // SRAM address space: [0x800 - 0x10000)
-constexpr uint16_t SRAM_START_ADDR = 0x800;     // SRAM address space: [0x800 - 0x10000)
-constexpr uint16_t SRAM_SIZE = 0xF800;          // 62K
 
-uint8_t memory_type_LUT[0xF800];                // 62K
-enum class memory_t {
-    sram,  // Default to R/W memory
-    rom,
-    led,
-    fram
-};
 
 // GPIO functions //
 
@@ -114,6 +108,13 @@ void setup1() {
 // Program ROM functions //
 
 uint8_t sram[SRAM_SIZE];
+uint8_t memory_type_LUT[VIDEOCART_SIZE];
+enum class memory_t {
+    sram,  // Default to R/W memory
+    rom,
+    led,
+    fram
+};
 
 /*! \brief Get the content of the memory address in the program ROM
  *
@@ -121,7 +122,7 @@ uint8_t sram[SRAM_SIZE];
  * \return The content of the memory address
  */
 __force_inline uint8_t read_program_byte(uint16_t address) {
-    switch (memory_type_LUT[address - MT_START_ADDR]) {
+    switch (memory_type_LUT[address - VIDEOCART_START_ADDR]) {
         case memory_t::sram:
             return sram[address - SRAM_START_ADDR];
         //case memory_t::fram:
@@ -138,7 +139,7 @@ __force_inline uint8_t read_program_byte(uint16_t address) {
  * \param data The byte to be written
  */
 __force_inline void write_program_byte(uint16_t address, uint8_t data) {
-    switch (memory_type_LUT[address - MT_START_ADDR]) {
+    switch (memory_type_LUT[address - VIDEOCART_START_ADDR]) {
         case memory_t::sram:
             sram[address - SRAM_START_ADDR] = data;
             break;
@@ -166,7 +167,7 @@ uint16_t dc0 = 0x00;
  * \param addr_source The address of the values source
  */
 __force_inline void write_dbus(uint8_t value, uint16_t addr_source) {
-    if (addr_source >= PROGRAM_START_ADDR && addr_source < 0x1000) {
+    if (VIDEOCART_START_ADDR <= addr_source && addr_source < VIDEOCART_SIZE) {
         gpio_put(DBUS_IN_CE_PIN, true);              // Disable input buffer
         gpio_clr_mask(0xFF << DBUS0_PIN);            // Write to DBUS
         gpio_set_mask((dbus = value) << DBUS0_PIN);
