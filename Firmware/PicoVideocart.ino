@@ -28,8 +28,6 @@ constexpr uint8_t DBUS_OUT_CE_PIN = 14;
                                                   // BIOS address space:      [0x00000 - 0x00800)
 constexpr uint16_t VIDEOCART_START_ADDR = 0x800;  // Videocart address space: [0x00800 - 0x10000)
 constexpr uint16_t VIDEOCART_SIZE = 0xF800;       // 62K
-constexpr uint16_t SRAM_START_ADDR = 0x800;       // SRAM address space:      [0x00800 - 0x10000)
-constexpr uint16_t SRAM_SIZE = 0xF800;            // 62K
 
 
 
@@ -107,16 +105,15 @@ void setup1() {
 
 // Program ROM functions //
 
-uint8_t sram_base[SRAM_SIZE];
-uint8_t *sram = &sram_base[-SRAM_START_ADDR]; // Avoids the need to subtract SRAM_START_ADDR from the address on each access
-uint8_t memory_type_LUT_base[VIDEOCART_SIZE];
-uint8_t *memory_type_LUT = &memory_type_LUT_base[-VIDEOCART_START_ADDR];
-enum class memory_t {
+enum class memory_t : uint8_t {
     sram,  // Default to R/W memory
     rom,
     led,
     fram
 };
+memory_t memory_type_LUT_base[VIDEOCART_SIZE];
+memory_t *memory_type_LUT = &memory_type_LUT_base[-VIDEOCART_START_ADDR]; // Avoids the need to subtract VIDEOCART_START_ADDR from the address on each access
+
 
 /*! \brief Get the content of the memory address in the program ROM
  *
@@ -125,13 +122,12 @@ enum class memory_t {
  */
 __force_inline uint8_t read_program_byte(uint16_t address) {
     switch (memory_type_LUT[address]) {
-        case memory_t::sram:
-            return sram[address];
         //case memory_t::fram:
             // TODO: implement FRAM read
         case memory_t::rom:
+        case memory_t::sram:
         case memory_t::led:
-            return program_rom[address];
+            return videocart_memory[address];
     }
 }
 
@@ -143,7 +139,7 @@ __force_inline uint8_t read_program_byte(uint16_t address) {
 __force_inline void write_program_byte(uint16_t address, uint8_t data) {
     switch (memory_type_LUT[address]) {
         case memory_t::sram:
-            sram[address] = data;
+            videocart_memory[address] = data;
             break;
         //case memory_t::fram:
             // TODO: implement FRAM write
@@ -515,7 +511,7 @@ void setup() {
 
     if (romFile) {
         gpio_put(LED_BUILTIN, true); // Turn on LED to indicate success
-        romFile.read((uint8_t*) (program_rom + 0x800), min(romFile.size(), 0xF7FF)); // Read up to 62K into program_rom
+        romFile.read((uint8_t*) (videocart_memory + 0x800), min(romFile.size(), VIDEOCART_SIZE - 1)); // Read up to 62K into program_rom
         romFile.close();
     } else {
         Morse::print("SD0");
