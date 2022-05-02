@@ -27,10 +27,17 @@ constexpr uint8_t DBUS_IN_CE_PIN = 15;
 constexpr uint8_t DBUS_OUT_CE_PIN = 14;
 
 constexpr uint16_t PROGRAM_START_ADDR = 0x800;  // Program address space: [0x0800 - 0x10000)
-constexpr uint16_t SRAM_START_ADDR = 0x2800;    // SRAM address space: [0x2800 - 0x3000)
-constexpr uint16_t SRAM_SIZE = 0x800;           // 2K
+constexpr uint16_t MT_START_ADDR = 0x800;     // SRAM address space: [0x800 - 0x10000)
+constexpr uint16_t SRAM_START_ADDR = 0x800;     // SRAM address space: [0x800 - 0x10000)
+constexpr uint16_t SRAM_SIZE = 0xF800;          // 62K
 
-
+uint8_t memory_type_LUT[0xF800];                // 62K
+enum class memory_t {
+    sram,  // Default to R/W memory
+    rom,
+    led,
+    fram
+};
 
 // GPIO functions //
 
@@ -106,7 +113,6 @@ void setup1() {
 
 // Program ROM functions //
 
-bool sramPresent = false;
 uint8_t sram[SRAM_SIZE];
 
 /*! \brief Get the content of the memory address in the program ROM
@@ -115,7 +121,15 @@ uint8_t sram[SRAM_SIZE];
  * \return The content of the memory address
  */
 __force_inline uint8_t read_program_byte(uint16_t address) {
-    return program_rom[address];
+    switch (memory_type_LUT[address - MT_START_ADDR]) {
+        case memory_t::sram:
+            return sram[address - SRAM_START_ADDR];
+        //case memory_t::fram:
+            // TODO: implement FRAM read
+        case memory_t::rom:
+        case memory_t::led:
+            return program_rom[address];
+    }
 }
 
 /*! \brief Set the content of the memory address in the program ROM
@@ -124,9 +138,15 @@ __force_inline uint8_t read_program_byte(uint16_t address) {
  * \param data The byte to be written
  */
 __force_inline void write_program_byte(uint16_t address, uint8_t data) {
-    if (SRAM_START_ADDR <= address && address < (SRAM_START_ADDR + SRAM_SIZE)) {
-        sramPresent = true;
-        sram[address - SRAM_START_ADDR] = data;
+    switch (memory_type_LUT[address - MT_START_ADDR]) {
+        case memory_t::sram:
+            sram[address - SRAM_START_ADDR] = data;
+            break;
+        //case memory_t::fram:
+            // TODO: implement FRAM write
+        case memory_t::led:
+            gpio_xor_mask(1 << LED_BUILTIN); // Toggle LED
+            break;
     }
 }
 
