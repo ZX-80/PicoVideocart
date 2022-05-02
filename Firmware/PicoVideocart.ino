@@ -106,14 +106,13 @@ void setup1() {
 // Program ROM functions //
 
 enum class memory_t : uint8_t {
-    sram,  // Default to R/W memory
-    rom,
-    led,
-    fram
+    rom,  // Default to read-only memory
+    sram,
+    fram,
+    led
 };
 memory_t memory_type_LUT_base[VIDEOCART_SIZE];
 memory_t *memory_type_LUT = &memory_type_LUT_base[-VIDEOCART_START_ADDR]; // Avoids the need to subtract VIDEOCART_START_ADDR from the address on each access
-
 
 /*! \brief Get the content of the memory address in the program ROM
  *
@@ -513,6 +512,10 @@ void setup() {
         gpio_put(LED_BUILTIN, true); // Turn on LED to indicate success
         romFile.read((uint8_t*) (videocart_memory + 0x800), min(romFile.size(), VIDEOCART_SIZE - 1)); // Read up to 62K into program_rom
         romFile.close();
+
+        // Setup default memory types
+        memset(&memory_type_LUT[0x2800], memory_t::sram, 0x800); // 2K SRAM [0x2800 - 0x3000)
+        memset(&memory_type_LUT[0x3800], memory_t::led, 0x800);  // 2K LED  [0x3800 - 0x4000)
     } else {
         Morse::print("SD0");
         panic("FATAL: SD card is empty");
