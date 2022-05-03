@@ -17,29 +17,19 @@ class port_sram : public IO_port {
             port_index = _port_index;
         };
         uint8_t read() {
-            switch (port_index) {
-                case 0:
-                    return port_a;
-                case 1:
-                    return port_b;
-            }
+            return port_index ? port_b : port_a;
         }
         void write(uint8_t data) {
             switch (port_index) {
                 case 0:
                     port_a = data & 0xF;
-                    address = (((port_a & 0x6) << 7) | port_b);
-                    if (port_a & 1) { // Write to SRAM
-                        sram_data[address] = port_a & 0x8;
-                    }
-                    port_a = (sram_data[address] << 7) | (port_a & 0x7F);
                 case 1:
                     port_b = data;
-                    address = (((port_a & 0x6) << 7) | port_b);
-                    if (port_a & 1) { // Write to SRAM
-                        sram_data[address] = port_a & 0x8;
-                    }
-                    port_a = (sram_data[address] << 7) | (port_a & 0x7F);
             }
+            address = (((port_a & 0x6) << 7) | port_b);
+            if (port_a & 1) { // Write to SRAM
+                sram_data[address] = port_a & 0x8;
+            }
+            port_a = (sram_data[address] << 7) | (port_a & 0x7F);
         }
 };
