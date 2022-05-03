@@ -15,6 +15,7 @@
 #include <hardware/structs/iobank0.h>
 
 #include "src/morse.h"
+#include "src/ports.h"
 #include "Videocart02.h"
 
 
@@ -105,6 +106,8 @@ void setup1() {
 
 // Program ROM functions //
 
+IO_port* IO[256];
+
 enum class memory_t : uint8_t {
     rom,  // Default to read-only memory
     sram,
@@ -157,6 +160,7 @@ uint8_t dbus = 0x00;
 uint16_t pc0 = 0x00;
 uint16_t pc1 = 0x00;
 uint16_t dc0 = 0x00;
+uint8_t io_address = 0x00;
 
 /*! \brief Write a value to the data bus
  *
@@ -211,8 +215,7 @@ __force_inline void execute_romc() {
              * Similiar to 0x00, except that it is used for immediate operands
              * fetches (using PC0) instead of instruction fetches.
              */
-            // write_dbus(io = read_program_byte(pc0), pc0); // io: last I/O address
-            write_dbus(read_program_byte(pc0), pc0);
+            write_dbus(io_address = read_program_byte(pc0), pc0);
             pc0 += 1;
             break;
         case 0x04:
@@ -412,7 +415,9 @@ __force_inline void execute_romc() {
              * register was addressed; the device containing the addressed port
              * must place the contents of the data bus into the address port.
              */
-            // TODO: ios.write_byte(io, dbus);
+            if (IO[io_address] != nullptr) {
+                IO[io_address]->write(dbus);
+            }
             break;
         case 0x1B:
             /*
@@ -422,7 +427,9 @@ __force_inline void execute_romc() {
              * contents of timer and interrupt control registers cannot be read
              * back onto the data bus).
              */
-            // TODO: dbus = ios.read_byte(io);
+            if (IO[io_address] != nullptr) {
+                write_dbus(IO[io_address]->read(), PROGRAM_START_ADDR);
+            }
             break;
         case 0x1C:
             /*
@@ -516,6 +523,11 @@ void setup() {
         // Setup default memory types
         memset(&memory_type_LUT[0x2800], memory_t::sram, 0x800); // 2K SRAM [0x2800 - 0x3000)
         memset(&memory_type_LUT[0x3800], memory_t::led, 0x800);  // 2K LED  [0x3800 - 0x4000)
+        
+        // Setup default ports
+        IO[0x18] = new port_sram(0);
+        IO[0x19] = new port_sram(1);
+      
     } else {
         Morse::print("SD0");
         panic("FATAL: SD card is empty");
