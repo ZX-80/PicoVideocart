@@ -1,71 +1,227 @@
 /** \file ports.h
- * 
- * Channel F I/O Ports
+ *  \brief Channel F I/O Ports
  *
- * The Channel F has 256 addressable I/O ports that it communicates with via the
- * OUT and IN instructions. The Channel F has 4 of these ports assigned to the
- * CPU/PSU. More information on the CPU/PSU ports can be found at
- * https://channelf.se/veswiki/index.php?title=Port
- * 
- * Default Port Assignments:
- * 
- *  Port Address   | Device           | Description
- *  ---------------|------------------|-------------
- *  0              | CPU              | buttons and Video RAM
- *  1              | CPU              | right controller and Video palette
- *  4              | PSU              | left controller and horizontal video position
- *  5              | PSU              | sound and vertical video position
- *  12             | 3853 SMI         | programmable interrupt vector (upper byte) 
- *  13             | 3853 SMI         | programmable interrupt vector (lower byte) 
- *  14             | 3853 SMI         | interrupt control port
- *  15             | 3853 SMI         | programmable timer
- *  24             | Videocart 10/18  | 2102 SRAM
- *  25             | Videocart 10/18  | 2102 SRAM
- * 
+ *  \details The Channel F has 256 addressable I/O ports that it communicates with via the
+ *  OUT and IN instructions.
+ *
+ *  - Four of these ports are assigned to the CPU/PSU
+ *    - https://channelf.se/veswiki/index.php?title=Port
+ *  - Four can be found on the 3853 SMI IC
+ *  - Two are used to connect a 2102 SRAM IC
+ *  - The remaining addresses were never used by any official Channel F products
+ *
+ *  ### Default Port Assignments
+ *
+ *   Port Address   | Device           | Description
+ *   ---------------|------------------|-------------
+ *   0              | CPU              | buttons and Video RAM
+ *   1              | CPU              | right controller and pixel palette
+ *   4              | PSU              | left controller and horizontal video position
+ *   5              | PSU              | sound and vertical video position
+ *   12             | 3853 SMI         | programmable interrupt vector (upper byte)
+ *   13             | 3853 SMI         | programmable interrupt vector (lower byte)
+ *   14             | 3853 SMI         | interrupt control port
+ *   15             | 3853 SMI         | programmable timer
+ *   24             | Videocart 10/18  | 2102 SRAM
+ *   25             | Videocart 10/18  | 2102 SRAM
+ *
  */
 
-// Abstract base class
+#ifndef PORTS_H
+#define PORTS_H
+
+#include "hardware/structs/rosc.h"
+
+/** \brief Abstract base class for ports */
 class IOPort {
-    public: 
+    public:
         virtual uint8_t read() = 0;
         virtual void write(uint8_t) = 0;
 };
 
+/** \brief A mapping from addresses to I/O ports */
+extern IOPort* IOPorts[256];
+
 /**
- * Implementation of a 2102 SRAM IC
+ * \brief Implementation of a 2102 SRAM IC
  *
- * Only used in Videocart 10 (Maze) and 18 (Hangman)
- * More info found at: http://seanriddle.com/mazepat.asm
- * Port descriptions:
- *                   7   6   5   4   3   2   1   0
- *     port a (p24) OUT  -   -   -  IN  A2  A3  RW
- *     port b (p25) A9  A8  A7  A1  A6  A5  A4  A0
+ * \details The 2102 is an asynchronous 1024 x 1-bit static random access
+ * read/write memory. It's only used in Videocart 10 (Maze) and 18 (Hangman).
+ * Data is normally written when the `read/WRITE` pin is low, but because the
+ * ports invert the data, we write when it's high.
+ *
+ * More info found at http://seanriddle.com/mazepat.asm or any 2102 SRAM
+ * datasheet.
+ *
+ * ### Port Details
+ *
+ *  Bit | Port A | Port B
+ *  ----|--------|--------
+ *  7   | OUT    | A9
+ *  6   | -      | A8
+ *  5   | -      | A7
+ *  4   | -      | A1
+ *  3   | IN     | A0
+ *  2   | A2     | A5
+ *  1   | A3     | A4
+ *  0   | RW     | A0
  *
  */
 class Sram2102 : public IOPort {
-    private: 
-        bool sram_data[1024];  // 1K x 1 bits
-        uint16_t address;      // 10-bit address
-        uint8_t port_a; 
-        uint8_t port_b;
-        uint8_t port_index;
-    public: 
-        Sram2102(uint8_t port_index): port_index(port_index) {}
-    
+    private:
+        bool sramData[1024];
+        uint16_t address;
+        uint8_t portA;
+        uint8_t portB;
+        uint8_t portIndex;
+        static constexpr uint8_t OUT_FLAG = 0x80;
+        static constexpr uint8_t IN_FLAG = 0x8;
+        static constexpr uint8_t ADDR_MASK = 0x6;
+        static constexpr uint8_t WRITE_FLAG = 0x1;
+
+    public:
+        Sram2102(uint8_t portIndex): portIndex(portIndex) {}
+
         uint8_t read() {
-            return port_index ? port_b : port_a;
+            return portIndex ? portB : portA;
         }
-    
+
         void write(uint8_t data) {
-            if (port_index) {
-                port_b = data;
+            if (portIndex) {
+                portB = data;
             } else {
-                port_a = data & 0xF;
+                portA = data & 0xF;
             }
-            address = (port_a & 0x6) << 7 | port_b;
-            if (port_a & 1) { // RW == write
-                sram_data[address] = port_a & 0x8;
+
+            // Update DATA OUT
+            address = (portA & ADDR_MASK) << 7 | portB;
+            if (portA & WRITE_FLAG) {
+                sramData[address] = portA & IN_FLAG;
             }
-            port_a = sram_data[address] << 7 | port_a & 0x7F;
+            portA = sramData[address] << 7 | portA & ~OUT_FLAG;
         }
 };
+
+/**
+ * \brief An IO port pseudo random number generator
+ *
+ * \details This IO port provides decent random numbers using a fast
+ * multiply-with-carry algorithm. The seed for this algorithm comes from
+ * either the programmer, or the Pico's Ring Oscillator.
+ *
+ * Praise RNJesus
+ *
+ */
+class Random : public IOPort {
+    private:
+        // Any non-zero 32-bit values
+        uint32_t z = 362436069;
+        uint32_t w = 521288629;
+
+        // Must be two distinct 16-bit constants for which both k*2^16-1 and k*2^15-1 are prime
+        static constexpr uint16_t Z_CONST = 30135;
+        static constexpr uint16_t W_CONST = 18513;
+
+        /**
+         * \brief Generate a random number using multiply-with-carry (MWC)
+         *
+         * \return a random number
+         *
+         * \details This specific MWC algorithm was choosen for its simplicity,
+         * high speed, long period (>2^60), and decent randomness properties.
+         * It was designed by George Marsaglia and is detailed here:
+         * https://www.math.uni-bielefeld.de/~sillke/ALGORITHMS/random/marsaglia-c
+         *
+         */
+        uint32_t rand32Mwc() {
+            z = Z_CONST * (z & 0xFFFF) + (z >> 16);
+            w = W_CONST * (w & 0xFFFF) + (w >> 16);
+            return (z << 16) + (w & 0xFFFF);
+        }
+
+        /**
+         * \brief Generate a random number using the Pico's ring oscillator
+         * (ROSC)
+         *
+         * \return a random number
+         *
+         * \details It's important to note that the ring oscillator is a
+         * pretty poor source of random numbers on its own.
+         * > It's not well characterised, somewhat biased, output is somewhat
+         * > periodic when sampled rapidly, etc.
+         * source: https://github.com/raspberrypi/pico-sdk/issues/569
+         *
+         */
+        uint32_t rand32Rosc() {
+            uint32_t weaklyRandomNum = 0;
+            for (uint8_t i = 0; i < 32; i++) {
+                weaklyRandomNum = (weaklyRandomNum << 1) | rosc_hw->randombit;
+            }
+            return weaklyRandomNum;
+        }
+
+        /**
+         * \brief Generate a random number using the Pico's ring oscillator
+         * (ROSC) and a randomness extractor
+         *
+         * \return a random number
+         *
+         * \details This version attempts to improve the ring oscillator's
+         * randomness properties using a randomness extractor function. In
+         * particular, it uses a 32-bit FNV-1a hash on 64-bits supplied by
+         * the ring oscillator.
+         *
+         * More information on the FNV hash function can be found at:
+         *   - https://datatracker.ietf.org/doc/html/draft-eastlake-fnv-17.html
+         *   - http://www.isthe.com/chongo/tech/comp/fnv/index.html
+         *
+         */
+        uint32_t rand32RoscExtractor() {
+            uint8_t weaklyRandomByte = 0;
+            uint32_t betterRandomNum = 0x811c9dc5; // FNV offset basis
+            for (uint8_t i = 0; i < 8; i++) {
+                for (uint8_t j = 0; j < 8; j++) {
+                    weaklyRandomByte = (weaklyRandomByte << 1) | rosc_hw->randombit;
+                }
+                betterRandomNum ^= weaklyRandomByte;
+                betterRandomNum *= 0x1000193; // FNV prime
+            }
+            return betterRandomNum;
+        }
+
+    public:
+        Random(): z(rand32RoscExtractor()), w(rand32RoscExtractor()) {}
+
+        /**
+         * \brief Generate a pseudo random number
+         *
+         * \return A random byte
+         */
+        uint8_t read() {
+            uint32_t rand32 = rand32Mwc();
+            return (rand32 >> 8) ^ rand32; // XOR-fold 32-bits into 8-bits
+        }
+
+        /**
+         * \brief Shift a byte into the 64-bit seed
+         *
+         * \param seed The byte to shift in
+         *
+         * \details The 64-bit seed value cannot be zero. Thus shifting in 8 zeros causes it to be re-seeded using the
+         * Pico's ring oscillator. This can be used to switch between deterministic and non-deterministic RNG.
+         *
+         */
+        void write(uint8_t seed) {
+            // Shift in the byte
+            z = (z << 8) | (w >> 24);
+            w = (w << 8) | seed;
+
+            if (w == 0) {                  // Re-seed
+                w = rand32RoscExtractor(); // TODO: Is this too slow?
+            }
+        }
+};
+
+// TODO: 3853 SMI
+
+#endif
