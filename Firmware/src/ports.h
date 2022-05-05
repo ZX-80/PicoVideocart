@@ -2,7 +2,7 @@
  *  \brief Channel F I/O Ports
  *
  *  \details The Channel F has 256 addressable I/O ports that it communicates with via the
- *  OUT and IN instructions.
+ *  OUT(S) and IN(S) instructions.
  *
  *  - Four of these ports are assigned to the CPU/PSU
  *    - https://channelf.se/veswiki/index.php?title=Port
