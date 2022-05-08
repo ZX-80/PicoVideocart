@@ -1,34 +1,30 @@
-As mentioned, the firmware essentially emulates a 3853 Static Memory Interface IC, while adding a few extra features. These include things such as an SD card multi-menu, FRAM, and a few extra IO ports. 
+# Features 🛰️
 
-# 🥅 Project Goals
+As mentioned, the firmware essentially emulates a 3853 SMI & EEPROM IC, while adding a few extra features
 
-**Game Support**
-- [ ] Work with all official games (not including special ICs)
-- [ ] Work with all official games (including special ICs)
-
-**SD Card Support**
-- [X] ~~Pass all ROMC tests on the Arduino Due~~
-- [X] ~~Work on a real Channel F with the game hardcoded into the Raspberry Pi Pico~~
-- [X] ~~`.bin` file format support~~
-- [X] ~~Work on a real Channel F with the game loaded from an SD Card (hardcoded filename)~~
-- [ ] Work on a real Channel F with the game loaded from an SD Card (selected from a menu)
+- [X] Support for all official Videocarts
+- [X] Loading files from an SD card
+- [X] `.bin` file format support
 - [ ] `.chf` file format support
+- [ ] SD card multi-menu
+- [ ] Save game / highscore support using an FRAM IC
 
-**Special ICs**
-- [X] ~~SRAM support at addresses 0x2800 - 0x2FFF~~
-- [X] ~~LED support at addresses 0x3800 - 0x38FF~~
-- [ ] FRAM support
-- [ ] I/O ports
-  - [ ] 1-bit SRAM support [0x18/0x19]
-  - [ ] Emulate 3853 SMI ports
-    - [ ] programmable interrupt vector address [0x0C/0x0D]
-    - [ ] programmable timer [0x0E]
-    - [ ] interrupt control [0x0F]
+**Memory-mapped devices**
 
-**Other**
-- [ ] Lowered power consumption to allow running the Pico from the Channel F bus (70 mA max)
+- [X] ROM
+- [x] LED
+- [x] SRAM
+- [ ] FRAM
 
-# ⚙️ Setup
+**Port-mapped devices**
+
+- [X] 1-bit 2102 SRAM
+- [X] Random number generator
+- [ ] Programmable interrupt vector address
+- [ ] Programmable timer
+- [ ] Interrupt control
+
+# Setup ⚙️
 
 To modify and flash the firmware, you'll need to do the following:
 
