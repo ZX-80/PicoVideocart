@@ -156,11 +156,13 @@ __force_inline void write_program_byte(uint16_t address, uint8_t data) {
 // Core 1 loop //
 
 uint8_t romc = 0x1C; // IDLE
-uint8_t dbus = 0x00;
-uint16_t pc0 = 0x00;
-uint16_t pc1 = 0x00;
-uint16_t dc0 = 0x00;
-uint8_t io_address = 0x00;
+uint8_t dbus;
+uint16_t pc0;
+uint16_t pc1;
+uint16_t dc0;
+uint16_t dc1;
+uint16_t tmp;
+uint8_t io_address;
 
 /*! \brief Write a value to the data bus
  *
@@ -415,8 +417,8 @@ __force_inline void execute_romc() {
              * register was addressed; the device containing the addressed port
              * must place the contents of the data bus into the address port.
              */
-            if (IO[io_address] != nullptr) {
-                IO[io_address]->write(dbus);
+            if (IOPorts[io_address] != nullptr) {
+                IOPorts[io_address]->write(dbus);
             }
             break;
         case 0x1B:
@@ -427,8 +429,8 @@ __force_inline void execute_romc() {
              * contents of timer and interrupt control registers cannot be read
              * back onto the data bus).
              */
-            if (IO[io_address] != nullptr) {
-                write_dbus(IO[io_address]->read(), PROGRAM_START_ADDR);
+            if (IOPorts[io_address] != nullptr) {
+                write_dbus(IOPorts[io_address]->read(), PROGRAM_START_ADDR);
             }
             break;
         case 0x1C:
@@ -444,9 +446,9 @@ __force_inline void execute_romc() {
              * Devices with DC0 and DC1 registers must switch registers.
              * Devices without a DC1 register perform no operation.
              */
-            //tmp = dc0;
-            //dc0 = dc1;
-            //dc1 = tmp;
+            tmp = dc0;
+            dc0 = dc1;
+            dc1 = tmp;
             break;
         case 0x1E:
             /*
@@ -525,8 +527,8 @@ void setup() {
         memset(&memory_type_LUT[0x3800], memory_t::led, 0x800);  // 2K LED  [0x3800 - 0x4000)
         
         // Setup default ports
-        IO[0x18] = new port_sram(0);
-        IO[0x19] = new port_sram(1);
+        IOPorts[0x18] = new Sram2102(0);
+        IOPorts[0x19] = new Sram2102(1);
       
     } else {
         Morse::print("SD0");
