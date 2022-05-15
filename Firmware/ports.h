@@ -69,10 +69,10 @@ extern IOPort* IOPorts[256];
  */
 class Sram2102 : public IOPort {
     private:
-        bool sramData[1024];
+        static bool sramData[1024];
+        static uint8_t portA;
+        static uint8_t portB;
         uint16_t address;
-        uint8_t portA;
-        uint8_t portB;
         uint8_t portIndex;
         static constexpr uint8_t OUT_FLAG = 0x80;
         static constexpr uint8_t IN_FLAG = 0x8;
