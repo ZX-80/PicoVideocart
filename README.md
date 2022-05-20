@@ -26,7 +26,7 @@ The Pico Videocart is an open source [flash cartridge](https://en.wikipedia.org/
 
 **Loading Games to the Flashcart**
 
-- This flashcart uses a micro SD card for storage, which makes it convenient to add and removes games. However, the micro SD card must be formatted as either FAT16 or FAT32 (recommended). Once formatted, simply place your game files (should end in `.bin`) onto the SD card and insert it into the flashcart.
+- This flashcart uses an SD card for storage, which makes it convenient to add and removes games. It's important to note that the SD card must be formatted as either FAT16 or FAT32 (recommended). Once formatted, simply place your game files (should end in `.bin` or `.chf`) onto the SD card and insert it into the flashcart.
 
 **Using the Multimenu**
 
