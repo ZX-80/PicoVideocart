@@ -20,6 +20,7 @@ As mentioned, the firmware essentially emulates a 3853 SMI & EEPROM IC, while ad
 
 - [X] 1-bit 2102 SRAM
 - [X] Random number generator
+- [X] Data/Return stacks
 - [ ] Programmable interrupt vector address
 - [ ] Programmable timer
 - [ ] Interrupt control
