@@ -23,7 +23,9 @@ As mentioned, the firmware essentially emulates a 3853 SMI & EEPROM IC, while ad
 - [X] Data/Return stacks
 - [ ] Programmable interrupt vector address
 - [ ] Programmable timer
-- [ ] Interrupt control
+- [ ] Interrupt control (3853 SMI)
+- [ ] Interrupt control (MK 3870/3871)
+- [ ] Binary timer
 
 # Setup ⚙️
 
