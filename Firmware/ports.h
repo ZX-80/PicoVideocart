@@ -18,6 +18,8 @@
  *   1              | CPU              | right controller and pixel palette
  *   4              | PSU              | left controller and horizontal video position
  *   5              | PSU              | sound and vertical video position
+ *   6              | MK 3870/3871     | interrupt control port (differs from the 3853 ICP)
+ *   7              | MK 3870/3871     | binary timer
  *   12             | 3853 SMI         | programmable interrupt vector (upper byte)
  *   13             | 3853 SMI         | programmable interrupt vector (lower byte)
  *   14             | 3853 SMI         | interrupt control port
@@ -222,6 +224,32 @@ class Random : public IOPort {
         }
 };
 
-// TODO: 3853 SMI
+/**
+ * \brief An IO port full descending hardware stack
+ *
+ * \details 
+ * Stack pointer:   [Full stack], Empty stack
+ * Stack direction: [Descending], Ascending
+ *
+ */
+class HardwareStack : public IOPort {
+    private:
+        static constexpr uint16_t STACK_SIZE = 2048; // Must be a power of 2
+        uint8_t stackData[STACK_SIZE];
+        uint16_t stackPointer = STACK_SIZE - 1; // TODO: should the stack pointer be R/W-able on a 2nd port?
+
+    public:
+        HardwareStack() = default;
+
+        uint8_t read() {
+            return stackData[(stackPointer++) & (STACK_SIZE - 1)];
+        }
+
+        void write(uint8_t data) {
+            stackData[(--stackPointer) & (STACK_SIZE - 1)] = data;
+        }
+};
+
+// TODO: 3853 SMI, MK 3870
 
 #endif
