@@ -530,6 +530,11 @@ void setup() {
         IOPorts[0x18] = new Sram2102(0);
         IOPorts[0x19] = new Sram2102(1);
       
+        // Setup flashcart ports
+        IOPorts[0x8] = new Random();
+        IOPorts[0x9] = new HardwareStack();   // Data stack
+        IOPorts[0xA] = new HardwareStack();   // Return stack
+      
     } else {
         Morse::print("SD0");
         panic("FATAL: SD card is empty");
