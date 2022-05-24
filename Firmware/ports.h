@@ -27,10 +27,17 @@
  *   24             | Videocart 10/18  | 2102 SRAM
  *   25             | Videocart 10/18  | 2102 SRAM
  *
+ *  ### Experimental Port Devices
+ * 
+ *   Port Address   | Device           | Description
+ *   ---------------|------------------|-------------
+ *   8              | Flashcart        | Random number generator
+ *   9              | Flashcart        | Data stack
+ *   10             | Flashcart        | Return stack
+ *
  */
 
-#ifndef PORTS_H
-#define PORTS_H
+#pragma once
 
 #include "hardware/structs/rosc.h"
 
@@ -43,6 +50,8 @@ class IOPort {
 
 /** \brief A mapping from addresses to I/O ports */
 extern IOPort* IOPorts[256];
+
+// TODO: 3853 SMI, MK 3870
 
 /**
  * \brief Implementation of a 2102 SRAM IC
@@ -249,7 +258,3 @@ class HardwareStack : public IOPort {
             stackData[(--stackPointer) & (STACK_SIZE - 1)] = data;
         }
 };
-
-// TODO: 3853 SMI, MK 3870
-
-#endif
