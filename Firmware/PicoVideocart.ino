@@ -170,7 +170,7 @@ uint8_t io_address;
  * \param addr_source The address of the values source
  */
 __force_inline void write_dbus(uint8_t value, uint16_t addr_source) {
-    if (VIDEOCART_START_ADDR <= addr_source && addr_source < VIDEOCART_SIZE) {
+    if (VIDEOCART_START_ADDR <= addr_source && addr_source < VIDEOCART_START_ADDR + VIDEOCART_SIZE) {
         gpio_put(DBUS_IN_CE_PIN, true);              // Disable input buffer
         gpio_clr_mask(0xFF << DBUS0_PIN);            // Write to DBUS
         gpio_set_mask((dbus = value) << DBUS0_PIN);
