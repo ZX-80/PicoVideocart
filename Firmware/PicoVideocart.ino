@@ -163,6 +163,7 @@ uint16_t dc0;
 uint16_t dc1;
 uint16_t tmp;
 uint8_t io_address;
+IOPort* IOPorts[256];
 
 /*! \brief Write a value to the data bus
  *
