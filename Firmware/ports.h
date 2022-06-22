@@ -24,8 +24,8 @@
  *   13             | 3853 SMI         | programmable interrupt vector (lower byte)
  *   14             | 3853 SMI         | interrupt control port
  *   15             | 3853 SMI         | programmable timer
- *   24             | Videocart 10/18  | 2102 SRAM
- *   25             | Videocart 10/18  | 2102 SRAM
+ *   36             | Videocart 10/18  | 2102 SRAM
+ *   37             | Videocart 10/18  | 2102 SRAM
  *
  *  ### Experimental Port Devices
  * 
