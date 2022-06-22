@@ -440,7 +440,11 @@ __force_inline void execute_romc() {
              *
              * Note: It's function is listed as IDLE in the Fairchild F3850 CPU
              * datasheet.
+             * 
+             * During OUTS/INS instructions in the range 2 to 15, the data bus
+             * holds the address of an I/O port
              */
+            io_address = dbus;
             break;
         case 0x1D:
             /*
@@ -528,8 +532,8 @@ void setup() {
         memset(&memory_type_LUT[0x3800], memory_t::led, 0x800);  // 2K LED  [0x3800 - 0x4000)
         
         // Setup default ports
-        IOPorts[0x18] = new Sram2102(0);
-        IOPorts[0x19] = new Sram2102(1);
+        IOPorts[0x24] = new Sram2102(0);
+        IOPorts[0x25] = new Sram2102(1);
       
         // Setup experimental flashcart ports
         IOPorts[0x8] = new Random();
