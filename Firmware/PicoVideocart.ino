@@ -1,5 +1,24 @@
+/* 
+ * Pico Videocart Firmware (rev 1A)
+ *
+ * This flash Videocart allows games to be loaded from an SD card and played
+ * on a Fairchild Channel F.
+ * 
+ * See the included schematic for wiring details
+ * 
+ * Created 2022 by 3DMAZE @ AtariAge
+ */
+
+#include "ports.h"
+#include "sys_clk.h"
+#include "no_sd_rom.h"
+
+#include <pico/sem.h>
+#include <pico/multicore.h>         // allow code to be run on both cores
+#include <hardware/gpio.h>
+#include <hardware/vreg.h>          // Voltage control for overclocking
+#include <hardware/structs/sio.h>
 #include <hardware/structs/iobank0.h>
-#include "Videocart12.h"
 
 constexpr uint8_t WRITE_PIN = 17;
 constexpr uint8_t PHI_PIN = 26;
@@ -8,33 +27,42 @@ constexpr uint8_t ROMC0_PIN = 18;
 constexpr uint8_t DBUS_IN_CE_PIN = 15;
 constexpr uint8_t DBUS_OUT_CE_PIN = 14;
 
-constexpr uint16_t PROGRAM_START_ADDR = 0x800;  // Program address space: [0x0800 - 0x10000)
-constexpr uint16_t SRAM_START_ADDR = 0x2800;    // SRAM address space: [0x2800 - 0x3000)
-constexpr uint16_t SRAM_SIZE = 0x800;           // 2K
+constexpr uint16_t VIDEOCART_START_ADDR = 0x800;  // Videocart address space: [0x0800 - 0x10000)
+constexpr uint16_t VIDEOCART_SIZE = 0xF800;       // 62K
 
 
 
 // GPIO functions //
 
-inline void gpio_init(uint8_t gpio, bool direction, bool value) __attribute__((always_inline));
-inline void gpio_init(uint8_t gpio, bool direction, bool value) {
+/*! \brief Initialize a GPIO pin in input mode
+ *
+ * \param gpio GPIO number
+ * \param out true for out, false for in
+ * \param value If false clear the GPIO, otherwise set it.
+ */
+__attribute__((always_inline)) inline void gpio_init_val(uint8_t gpio, bool out, bool value) {
     gpio_put(gpio, value);
-    gpio_set_dir(gpio, direction);
+    gpio_set_dir(gpio, out);
     gpio_set_function(gpio, GPIO_FUNC_SIO);
 }
 
-inline uint8_t read_romc() __attribute__((always_inline));
-inline uint8_t read_romc() {
+/*! \brief Get the ROMC bus value
+ *
+ * \return 5-bit ROMC bus value
+ */
+__attribute__((always_inline)) inline uint8_t read_romc() {
     return (gpio_get_all() >> ROMC0_PIN) & 0x1F;
 }
 
-inline uint8_t read_dbus() __attribute__((always_inline));
-inline uint8_t read_dbus() {
+/*! \brief Get the data bus value
+ *
+ * \return 8-bit data bus value
+ */
+__attribute__((always_inline)) inline uint8_t read_dbus() {
     return (gpio_get_all() >> DBUS0_PIN) & 0xFF;
 }
 
-void setup() {
-
+void setup1() {
     // Initialize data bus pins
     gpio_set_dir_in_masked(0xFF << DBUS0_PIN);        // Set DBUS to input mode
     gpio_clr_mask(0xFF << DBUS0_PIN);                 // Set DBUS data to 0
@@ -57,63 +85,100 @@ void setup() {
     gpio_set_function(ROMC0_PIN + 4, GPIO_FUNC_SIO);
  
     // Initialize other cartridge pins
-    gpio_init(WRITE_PIN, GPIO_IN, false);
-    gpio_init(PHI_PIN, GPIO_IN, false);
-    gpio_init(DBUS_OUT_CE_PIN, GPIO_OUT, true);
-    gpio_init(DBUS_IN_CE_PIN, GPIO_OUT, false);
-    gpio_init(LED_BUILTIN, GPIO_OUT, true);
+    gpio_init_val(WRITE_PIN, GPIO_IN, false);
+    gpio_init_val(PHI_PIN, GPIO_IN, false);
+    gpio_init_val(DBUS_OUT_CE_PIN, GPIO_OUT, true);
+    gpio_init_val(DBUS_IN_CE_PIN, GPIO_OUT, false);
+    gpio_init_val(LED_BUILTIN, GPIO_OUT, true);
+
+   // Shift into maximum overdrive (aka 428 MHz @ 1.3 V)
+    vreg_set_voltage(VREG_VOLTAGE_1_30);
+    sleep_ms(1);
+    if (!set_sys_clock_khz(428000, false)) { // Blink LED to indicate overclocking failure
+        gpio_put(LED_BUILTIN, false);
+        sleep_ms(1000);
+        gpio_put(LED_BUILTIN, true);
+        sleep_ms(1000);
+        gpio_put(LED_BUILTIN, false);
+        sleep_ms(1000);
+        gpio_put(LED_BUILTIN, true);
+        sleep_ms(1000);
+        gpio_put(LED_BUILTIN, false);
+        sleep_ms(1000);
+        gpio_put(LED_BUILTIN, true);
+    } else {
+        gpio_put(LED_BUILTIN, false);
+    }
 }
 
 
 
 // Program ROM functions //
 
-bool sram_present = false;
 uint8_t sram[SRAM_SIZE];
-uint8_t read_program_byte(uint16_t address) {
-    if (SRAM_START_ADDR <= address && address < (SRAM_START_ADDR + SRAM_SIZE) && sram_present) {
+
+/*! \brief Get the content of the memory address in the program ROM
+ *
+ * \param address The location of the data
+ * \return The content of the memory address
+ */
+__attribute__((always_inline)) inline uint8_t read_program_byte(uint16_t address) {
+    if (SRAM_START_ADDR <= address && address < (SRAM_START_ADDR + SRAM_SIZE)) {
         return sram[address - SRAM_START_ADDR];
+    } else if (VIDEOCART_START_ADDR <= address) { // does nothing
+        return program_rom[address];
     } else {
-        return program_rom[address - PROGRAM_START_ADDR];
+        return 0xFF;
     }
 }
-void write_program_byte(uint16_t address, uint8_t data) {
+
+/*! \brief Set the content of the memory address in the program ROM
+ *
+ * \param address The location to write the data
+ * \param data The byte to be written
+ */
+__attribute__((always_inline)) inline void write_program_byte(uint16_t address, uint8_t data) {
     if (SRAM_START_ADDR <= address && address < (SRAM_START_ADDR + SRAM_SIZE)) {
-        sram_present = true;
         sram[address - SRAM_START_ADDR] = data;
     }
 }
 
 
 
-// Core 0 loop //
+// Core 1 loop //
 
-uint8_t tick = 0; // Clock ticks since last WRITE falling edge
-uint8_t romc = 0x1C; // IDLE
+uint8_t romc = 0x1C;   // IDLE
 uint8_t dbus = 0x00;
 uint16_t pc0 = 0x00;
 uint16_t pc1 = 0x00;
 uint16_t dc0 = 0x00;
 uint16_t dc1 = 0x00;
-uint8_t phiState;
-uint8_t lastPhiState = false;
-uint8_t writeState;
-uint8_t lastWriteState = false;
 uint16_t tmp;
-bool out_op = false;
+uint8_t io_address;
+IOPort* IOPorts[256];
 
-inline void execute_romc() __attribute__((always_inline));
-inline void execute_romc() {
+__attribute__((always_inline)) inline void write_dbus(uint8_t value, uint16_t addr_source) {
+    if (addr_source >= VIDEOCART_START_ADDR && addr_source < (VIDEOCART_START_ADDR + VIDEOCART_SIZE)) {
+        dbus = value;
+        gpio_put(DBUS_IN_CE_PIN, true);              // Disable input buffer
+        gpio_clr_mask(0xFF << DBUS0_PIN);            // Write to DBUS
+        gpio_set_mask(dbus << DBUS0_PIN);
+        gpio_set_dir_out_masked(0xFF << DBUS0_PIN);  // Set DBUS to output mode
+        gpio_put(DBUS_OUT_CE_PIN, false);            // Enable output buffer
+    }
+}
+
+/*! \brief Process ROMC instructions */
+__attribute__((always_inline)) inline void execute_romc() { 
     switch (romc) {
         case 0x00:
-            /*      
+            /*
              * Instruction Fetch. The device whose address space includes the
              * contents of the PC0 register must place on the data bus the op
              * code addressed by PC0; then all devices increment the contents
              * of PC0.
              */
-            dbus = read_program_byte(pc0);
-            out_op = pc0 >= PROGRAM_START_ADDR;
+            write_dbus(read_program_byte(pc0), pc0);
             pc0 += 1;
             break;
         case 0x01:
@@ -123,11 +188,8 @@ inline void execute_romc() {
              * location addressed by PC0; then all devices add the 8-bit value
              * on the data bus as signed binary number to PC0.
              */
-            if (pc0 >= PROGRAM_START_ADDR) {
-                dbus = read_program_byte(pc0);
-                out_op = true;
-            }
-            pc0 += dbus;
+            write_dbus(read_program_byte(pc0), pc0);
+            pc0 += (int8_t) dbus;
             break;
         case 0x02:
             /*
@@ -136,8 +198,7 @@ inline void execute_romc() {
              * the memory location addressed by DC0; then all devices increment
              * DC0.
              */
-            dbus = read_program_byte(dc0);
-            out_op = dc0 >= PROGRAM_START_ADDR;
+            write_dbus(read_program_byte(dc0), dc0);
             dc0 += 1;
             break;
         case 0x03:
@@ -145,8 +206,7 @@ inline void execute_romc() {
              * Similiar to 0x00, except that it is used for immediate operands
              * fetches (using PC0) instead of instruction fetches.
              */
-            dbus = read_program_byte(pc0);
-            out_op = pc0 >= PROGRAM_START_ADDR;
+            write_dbus(io_address = read_program_byte(pc0), pc0);
             pc0 += 1;
             break;
         case 0x04:
@@ -172,8 +232,7 @@ inline void execute_romc() {
              * Note: Assumed to only apply to the device whose address space 
              * includes the contents of the DC0 register
              */
-            dbus = dc0 >> 8;
-            out_op = dc0 >= PROGRAM_START_ADDR;
+            write_dbus(dc0 >> 8, dc0);
             break;
         case 0x07:
             /*
@@ -182,14 +241,15 @@ inline void execute_romc() {
              * Note: Assumed to only apply to the device whose address space 
              * includes the contents of the PC1 register
              */
-            dbus = pc1 >> 8;
-            out_op = pc1 >= PROGRAM_START_ADDR;
+            write_dbus(pc1 >> 8, pc1);
             break;
         case 0x08:
             /*
              * All devices copy the contents of PC0 into PC1. The CPU outputs
              * zero on the data bus in this ROMC state. Load the data bus into
              * both halves of PC0, thus clearing the register.
+             * 
+             * Note: Reset button pressed
              */
             pc1 = pc0;
             pc0 = (dbus << 8) | dbus;
@@ -199,8 +259,7 @@ inline void execute_romc() {
              * The device whose address space includes the contents of the DC0
              * register must place the low order byte of DC0 onto the data bus.
              */
-            dbus = dc0 & 0xff;
-            out_op = dc0 >= PROGRAM_START_ADDR;
+            write_dbus(dc0 & 0xff, dc0);
             break;
         case 0x0A:
             /*
@@ -214,8 +273,7 @@ inline void execute_romc() {
              * The device whose address space includes the value in PC1
              * must place the low order byte of PC1 onto the data bus.
              */
-            dbus = pc1 & 0xff;
-            out_op = pc1 >= PROGRAM_START_ADDR;
+            write_dbus(pc1 & 0xff, pc1);
             break;
         case 0x0C:
             /*
@@ -224,10 +282,7 @@ inline void execute_romc() {
              * by PC0 into the data bus; then all devices move the value that
              * has just been placed on the data bus into the low order byte of PC0.
              */
-            if (pc0 >= PROGRAM_START_ADDR) {
-                dbus = read_program_byte(pc0);
-                out_op = true;
-            }
+            write_dbus(read_program_byte(pc0), pc0);
             pc0 = (pc0 & 0xff00) | dbus;
             break;
         case 0x0D:
@@ -244,10 +299,7 @@ inline void execute_romc() {
              * The value on the data bus is then moved to the low order byte
              * of DC0 by all devices.
              */
-            if (pc0 >= PROGRAM_START_ADDR) {
-                dbus = read_program_byte(pc0);
-                out_op = true;
-            }
+            write_dbus(read_program_byte(pc0), pc0);
             dc0 = (dc0 & 0xff00) | dbus;
             break;
         case 0x0F:
@@ -259,12 +311,24 @@ inline void execute_romc() {
              * byte of PC0.
              */
             // TODO
+            pc1 = pc0;
+            pc0 = (pc0 & 0xff00) | dbus;
             break;
         case 0x10:
             /*
              * Inhibit any modification to the interrupt priority logic.
+             * 
+             * Note: Also described as
+             *   "PREVENT ADDRESS VECTOR CONFLICTS"
+             *   "FREEZE INTERRUPT STATUS"
+             *   "Place interrupt circuitry on an inhibit state that
+             *   prevents altering the interrupt chain"
+             *   "A NO-OP long cycle to allow time for the internal 
+             *   priority chain to settle"
+             *   "A NO-OP long cycle to allow time for the PRI IN/PRI
+             *   OUT chain to settle"
+             * in the Mostek F8 Data Book
              */
-            // TODO
             break;
         case 0x11:
             /*
@@ -273,10 +337,7 @@ inline void execute_romc() {
              * data bus. All devices must then move the contents of the
              * data bus to the upper byte of DC0.
              */
-            if (pc0 >= PROGRAM_START_ADDR) {
-                dbus = read_program_byte(pc0);
-                out_op = true;
-            }
+            write_dbus(read_program_byte(pc0), pc0);
             dc0 = (dc0 & 0x00ff) | (dbus << 8);
             break;
         case 0x12:
@@ -297,6 +358,7 @@ inline void execute_romc() {
              * to another interrupt).
              */
             // TODO
+            pc0 = (pc0 & 0x00ff) | (dbus << 8);
             break;
         case 0x14:
             /*
@@ -346,7 +408,9 @@ inline void execute_romc() {
              * register was addressed; the device containing the addressed port
              * must place the contents of the data bus into the address port.
              */
-            // TODO
+            if (IOPorts[io_address] != nullptr) {
+                IOPorts[io_address]->write(dbus);
+            }
             break;
         case 0x1B:
             /*
@@ -356,15 +420,21 @@ inline void execute_romc() {
              * contents of timer and interrupt control registers cannot be read
              * back onto the data bus).
              */
-            // TODO
+            if (IOPorts[io_address] != nullptr) {
+                write_dbus(IOPorts[io_address]->read(), PROGRAM_START_ADDR);
+            }
             break;
         case 0x1C:
             /*
              * None.
              *
              * Note: It's function is listed as IDLE in the Fairchild F3850 CPU
-             * datasheet. Used in the RESET and INTRPT intructions.
+             * datasheet.
+             * 
+             * During OUTS/INS instructions in the range 2 to 15, the data bus
+             * holds the address of an I/O port
              */
+            io_address = dbus;
             break;
         case 0x1D:
             /*
@@ -380,59 +450,100 @@ inline void execute_romc() {
              * The devices whose address space includes the contents of PC0
              * must place the low order byte of PC0 onto the data bus.
              */
-            dbus = pc0 & 0xff;
-            out_op = pc0 >= PROGRAM_START_ADDR;
+            write_dbus(pc0 & 0xff, pc0);
             break;
         case 0x1F:
             /*
              * The devices whose address space includes the contents of PC0
              * must place the high order byte of PC0 onto the data bus.
              */
-            dbus = (pc0 >> 8) & 0xff;
-            out_op = pc0 >= PROGRAM_START_ADDR;
+            write_dbus((pc0 >> 8) & 0xff, pc0);
             break;
       }
 }
 
-void loop() {
-
-    writeState = gpio_get(WRITE_PIN);
-    if (writeState != lastWriteState) {
-        if (writeState == false) { // Falling edge
-            tick = 0;
-            gpio_put(DBUS_OUT_CE_PIN, true);            // Disable output buffer
-            gpio_set_dir_in_masked(0xFF << DBUS0_PIN);  // Set DBUS to input mode
-            gpio_put(DBUS_IN_CE_PIN, false);            // Enable input buffer
-        } else {  // Rising edge
-
-            dbus = read_dbus();
-            romc = read_romc();
-            execute_romc();
-
-            if (out_op) { // Rising edge 
-                out_op = false;
-                gpio_put(DBUS_IN_CE_PIN, true);              // Disable input buffer
-                gpio_clr_mask(0xFF << DBUS0_PIN);            // Write to DBUS
-                gpio_set_mask(dbus << DBUS0_PIN);
-                gpio_set_dir_out_masked(0xFF << DBUS0_PIN);  // Set DBUS to output mode
-                gpio_put(DBUS_OUT_CE_PIN, false);            // Enable output buffer
-            }
-        }
+void __not_in_flash_func(loop1)() {
+    for (;;) {
+        while(gpio_get(WRITE_PIN)==1) {
+            tight_loop_contents();
+        } 
+        // Falling edge
+        gpio_put(DBUS_OUT_CE_PIN, true);            // Disable output buffer
+        gpio_set_dir_in_masked(0xFF << DBUS0_PIN);  // Set DBUS to input mode
+        gpio_put(DBUS_IN_CE_PIN, false);            // Enable input buffer
+            
+        while(gpio_get(WRITE_PIN)==0) {
+            tight_loop_contents();
+        } 
+        // Rising edge
+        dbus = read_dbus();
+        romc = read_romc();
+        execute_romc();
     }
-    lastWriteState = writeState;
-
-    phiState = gpio_get(PHI_PIN);
-    if ((phiState != lastPhiState) && phiState) { // Rising edge
-        switch (tick) {
-            case 0:
-            case 1:  // ROMC is now valid
-            case 2:
-            case 3:
-            case 4:  // DBUS is now valid
-            case 5:  // WRITE is high
-            ;
-        }
-        tick += 1;
-    }
-    lastPhiState = phiState;
 }
+
+// Running on core 0
+
+#include <SPI.h>
+#include <SD.h>
+
+constexpr uint8_t SERIAL_CLOCK_PIN = 2;
+constexpr uint8_t TRANSMIT_PIN = 3;
+constexpr uint8_t RECEIVE_PIN = 4;
+constexpr uint8_t CHIP_SELECT_PIN = 5;
+
+void setup() {
+
+    // setup SD card pins
+    SPI.setSCK(SERIAL_CLOCK_PIN);
+    SPI.setTX(TRANSMIT_PIN);
+    SPI.setRX(RECEIVE_PIN);
+    SPI.setCS(CHIP_SELECT_PIN);
+
+    // Load the game   
+    while (!SD.begin(CHIP_SELECT_PIN)) { // wait for SD card
+        sleep_ms(1000);
+    }
+    File romFile = SD.open("boxingv1.bin");
+    if (romFile) {
+        gpio_put(LED_BUILTIN, true); // Turn on LED to indicate success
+        romFile.read((uint8_t*) (program_rom + 0x800), min(romFile.size(), 0xF7FF)); // Read up to 62K into program_rom
+        romFile.close();
+
+        /* Default Memory Map
+                  |---------|
+           0x0000 |   ROM   |
+                  |         |
+                  |         |
+                  |         |
+                  |---------|
+           0x2800 |   RAM   |
+                  |---------|
+           0x3000 |   ROM   |
+                  |---------|
+           0x3800 |   LED   |
+                  |---------|
+           0x4000 |   ROM   |
+                  :         :
+                  :         :
+        */
+
+        // Setup default ports
+        IOPorts[0x24] = new Sram2102(0);
+        IOPorts[0x25] = new Sram2102(1);
+
+    } else {
+        // Blink LED 3 times to signify failure
+        gpio_put(LED_BUILTIN, true);
+        sleep_ms(500);
+        gpio_put(LED_BUILTIN, false);
+        sleep_ms(1000);
+        gpio_put(LED_BUILTIN, true);
+        sleep_ms(500);
+        gpio_put(LED_BUILTIN, false);
+        sleep_ms(1000);
+        gpio_put(LED_BUILTIN, true);
+    }
+};
+
+void loop() {};
