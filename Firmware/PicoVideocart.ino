@@ -205,7 +205,7 @@ __attribute__((always_inline)) inline void execute_romc() {
             break;
         case 0x03:
             /*
-             * Similiar to 0x00, except that it is used for immediate operands
+             * Similar to 0x00, except that it is used for immediate operands
              * fetches (using PC0) instead of instruction fetches.
              */
             write_dbus(io_address = read_program_byte(pc0), pc0);
