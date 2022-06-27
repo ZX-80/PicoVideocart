@@ -10,10 +10,10 @@
  */
 
 #include "ports.h"
-#include "sys_clk.h"
 #include "no_sd_rom.h"
 
 #include <pico/sem.h>
+#include <pico/stdlib.h>            // Overclocking functions
 #include <pico/multicore.h>         // allow code to be run on both cores
 #include <hardware/gpio.h>
 #include <hardware/vreg.h>          // Voltage control for overclocking
@@ -29,6 +29,8 @@ constexpr uint8_t DBUS_OUT_CE_PIN = 14;
 
 constexpr uint16_t VIDEOCART_START_ADDR = 0x800;  // Videocart address space: [0x0800 - 0x10000)
 constexpr uint16_t VIDEOCART_SIZE = 0xF800;       // 62K
+constexpr uint16_t SRAM_START_ADDR = 0x2800;
+constexpr uint16_t SRAM_SIZE = 0x800;
 
 
 
@@ -421,7 +423,7 @@ __attribute__((always_inline)) inline void execute_romc() {
              * back onto the data bus).
              */
             if (IOPorts[io_address] != nullptr) {
-                write_dbus(IOPorts[io_address]->read(), PROGRAM_START_ADDR);
+                write_dbus(IOPorts[io_address]->read(), VIDEOCART_START_ADDR);
             }
             break;
         case 0x1C:
