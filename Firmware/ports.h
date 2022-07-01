@@ -31,8 +31,6 @@
 
 #pragma once
 
-#include "hardware/structs/rosc.h"
-
 /** \brief Abstract base class for ports 
  * 
  * \details This interface is used by the Videocart emulation code to read and

@@ -10,6 +10,7 @@
  */
 
 #include "ports.h"
+#include "error.h"
 #include "no_sd_rom.h"
 
 #include <pico/sem.h>
@@ -42,7 +43,7 @@ constexpr uint16_t SRAM_SIZE = 0x800;
  * \param out true for out, false for in
  * \param value If false clear the GPIO, otherwise set it.
  */
-__attribute__((always_inline)) inline void gpio_init_val(uint8_t gpio, bool out, bool value) {
+__force_inline void gpio_init_val(uint8_t gpio, bool out, bool value) {
     gpio_put(gpio, value);
     gpio_set_dir(gpio, out);
     gpio_set_function(gpio, GPIO_FUNC_SIO);
@@ -52,7 +53,7 @@ __attribute__((always_inline)) inline void gpio_init_val(uint8_t gpio, bool out,
  *
  * \return 5-bit ROMC bus value
  */
-__attribute__((always_inline)) inline uint8_t read_romc() {
+__force_inline uint8_t read_romc() {
     return (gpio_get_all() >> ROMC0_PIN) & 0x1F;
 }
 
@@ -60,7 +61,7 @@ __attribute__((always_inline)) inline uint8_t read_romc() {
  *
  * \return 8-bit data bus value
  */
-__attribute__((always_inline)) inline uint8_t read_dbus() {
+__force_inline uint8_t read_dbus() {
     return (gpio_get_all() >> DBUS0_PIN) & 0xFF;
 }
 
@@ -96,20 +97,9 @@ void setup1() {
    // Shift into maximum overdrive (aka 428 MHz @ 1.3 V)
     vreg_set_voltage(VREG_VOLTAGE_1_30);
     sleep_ms(1);
-    if (!set_sys_clock_khz(428000, false)) { // Blink LED to indicate overclocking failure
-        gpio_put(LED_BUILTIN, false);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, true);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, false);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, true);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, false);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, true);
-    } else {
-        gpio_put(LED_BUILTIN, false);
+    if (!set_sys_clock_khz(428000, false)) {
+        blink_code(BLINK::OVERCLOCK_FAILED);
+        panic("Overclock was unsuccessful");
     }
 }
 
@@ -124,7 +114,7 @@ uint8_t sram[SRAM_SIZE];
  * \param address The location of the data
  * \return The content of the memory address
  */
-__attribute__((always_inline)) inline uint8_t read_program_byte(uint16_t address) {
+__force_inline uint8_t read_program_byte(uint16_t address) {
     if (SRAM_START_ADDR <= address && address < (SRAM_START_ADDR + SRAM_SIZE)) {
         return sram[address - SRAM_START_ADDR];
     } else if (VIDEOCART_START_ADDR <= address) { // does nothing
@@ -139,7 +129,7 @@ __attribute__((always_inline)) inline uint8_t read_program_byte(uint16_t address
  * \param address The location to write the data
  * \param data The byte to be written
  */
-__attribute__((always_inline)) inline void write_program_byte(uint16_t address, uint8_t data) {
+__force_inline void write_program_byte(uint16_t address, uint8_t data) {
     if (SRAM_START_ADDR <= address && address < (SRAM_START_ADDR + SRAM_SIZE)) {
         sram[address - SRAM_START_ADDR] = data;
     }
@@ -159,7 +149,7 @@ uint16_t tmp;
 uint8_t io_address;
 IOPort* IOPorts[256];
 
-__attribute__((always_inline)) inline void write_dbus(uint8_t value, uint16_t addr_source) {
+__force_inline void write_dbus(uint8_t value, uint16_t addr_source) {
     if (addr_source >= VIDEOCART_START_ADDR && addr_source < (VIDEOCART_START_ADDR + VIDEOCART_SIZE)) {
         dbus = value;
         gpio_put(DBUS_IN_CE_PIN, true);              // Disable input buffer
@@ -171,7 +161,7 @@ __attribute__((always_inline)) inline void write_dbus(uint8_t value, uint16_t ad
 }
 
 /*! \brief Process ROMC instructions */
-__attribute__((always_inline)) inline void execute_romc() { 
+__force_inline void execute_romc() { 
     switch (romc) {
         case 0x00:
             /*
@@ -535,16 +525,7 @@ void setup() {
         IOPorts[0x25] = new Sram2102(1);
 
     } else {
-        // Blink LED 3 times to signify failure
-        gpio_put(LED_BUILTIN, true);
-        sleep_ms(500);
-        gpio_put(LED_BUILTIN, false);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, true);
-        sleep_ms(500);
-        gpio_put(LED_BUILTIN, false);
-        sleep_ms(1000);
-        gpio_put(LED_BUILTIN, true);
+        blink_code(BLINK::NO_VALID_FILES);
     }
 };
 
