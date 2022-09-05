@@ -523,7 +523,8 @@ void read_chf_file(uint8_t program_rom[], File &romFile) {
     while (strncmp(ch.magic_number, "CHIP", 4) == 0) {
         //set attribute and pull data
         memset(program_attribute + ch.load_address, ch.chip_type, ch.size);
-        if (ch.chip_type != 1) {
+        size_t chip_types_length = sizeof(ChipTypes) / sizeof(ChipTypes[0]);
+        if (ch.chip_type < chip_types_length && ChipTypes[ch.chip_type].has_data()) {
             romFile.read((uint8_t*) (program_rom + ch.load_address), ch.size);
             romFile.seek(header_start + ch.packet_length, SeekSet); // skip padding
         }
