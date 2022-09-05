@@ -553,7 +553,7 @@ void setup() {
     while (!SD.begin(SD_CARD_CHIP_SELECT_PIN)) { // wait for SD card
         sleep_ms(1000);
     }
-    File romFile = SD.open("boxingv1.bin");
+    File romFile = SD.open("boot.bin");
     if (romFile) {
         gpio_put(LED_BUILTIN, true); // Turn on LED to indicate success
         sleep_ms(500);
