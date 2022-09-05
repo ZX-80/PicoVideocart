@@ -13,6 +13,9 @@
 #include "error.h"
 #include "no_sd_rom.h"
 
+#include <SPI.h>
+#include <SD.h>
+
 #include <pico/sem.h>
 #include <pico/stdlib.h>            // Overclocking functions
 #include <pico/multicore.h>         // allow code to be run on both cores
@@ -97,7 +100,7 @@ void setup1() {
    // Shift into maximum overdrive (aka 428 MHz @ 1.3 V)
     vreg_set_voltage(VREG_VOLTAGE_1_30);
     sleep_ms(1);
-    if (!set_sys_clock_khz(428000, false)) {
+    if (!set_sys_clock_khz(400000, false)) {
         blink_code(BLINK::OVERCLOCK_FAILED);
         panic("Overclock was unsuccessful");
     }
@@ -302,7 +305,7 @@ __force_inline void execute_romc() {
              * must move the contents of the data bus into the low order
              * byte of PC0.
              */
-            // TODO
+            // TODO: ROMC 0x0F
             pc1 = pc0;
             pc0 = (pc0 & 0xff00) | dbus;
             break;
@@ -349,7 +352,7 @@ __force_inline void execute_romc() {
              * (so that it is no longer requesting CPU servicing and can respond
              * to another interrupt).
              */
-            // TODO
+            // TODO: ROMC 0x13
             pc0 = (pc0 & 0x00ff) | (dbus << 8);
             break;
         case 0x14:
@@ -476,13 +479,64 @@ void __not_in_flash_func(loop1)() {
 
 // Running on core 0
 
-#include <SPI.h>
-#include <SD.h>
-
 constexpr uint8_t SERIAL_CLOCK_PIN = 2;
-constexpr uint8_t TRANSMIT_PIN = 3;
-constexpr uint8_t RECEIVE_PIN = 4;
-constexpr uint8_t CHIP_SELECT_PIN = 5;
+constexpr uint8_t TRANSMIT_PIN = 3; // MOSI
+constexpr uint8_t RECEIVE_PIN = 0;  // MISO
+constexpr uint8_t SD_CARD_CHIP_SELECT_PIN = 5;
+constexpr uint8_t FRAM_CHIP_SELECT_PIN = 1;
+constexpr uint8_t WRITE_PROTECT_PIN = 4;
+
+struct __attribute__((packed)) chf_header {
+    char magic_number[16];
+    uint32_t header_length;
+    uint8_t minor_version;
+    uint8_t major_version;
+    uint16_t hardware_type;
+    uint64_t reserved;
+    uint8_t title_length;
+};
+struct __attribute__((packed)) chip_header {
+    char magic_number[4];
+    uint32_t packet_length;
+    uint16_t chip_type;
+    uint16_t bank_number;
+    uint16_t load_address;
+    uint16_t size;
+};
+
+void read_chf_file(uint8_t program_rom[], File &romFile) {
+    // It's guaranteed the first 16 bytes are valid & the file size is >= 64 (file_header[48] + chip_header[16])
+
+    // read header
+    chf_header header;
+    romFile.read((uint8_t*) &header, sizeof(chf_header));
+
+    // read title
+    char title[257] = {0};
+    romFile.read((uint8_t*) &title, header.title_length + 1);
+    romFile.seek(header.header_length, SeekSet); // skip padding
+
+    // read chip packets
+    chip_header ch;
+    size_t header_start = romFile.position();
+    romFile.read((uint8_t*) &ch, sizeof(ch));
+    while (strncmp(ch.magic_number, "CHIP", 4) == 0) {
+        //set attribute and pull data
+        memset(program_attribute + ch.load_address, ch.chip_type, ch.size);
+        if (ch.chip_type != 1) {
+            romFile.read((uint8_t*) (program_rom + ch.load_address), ch.size);
+            romFile.seek(header_start + ch.packet_length, SeekSet); // skip padding
+        }
+        
+        // next packet
+        if ((romFile.size() - romFile.position()) >= 16) {
+            header_start = romFile.position();
+            romFile.read((uint8_t*) &ch, sizeof(ch));
+        } else {
+            break;
+        }
+    }
+}
 
 void setup() {
 
@@ -490,34 +544,54 @@ void setup() {
     SPI.setSCK(SERIAL_CLOCK_PIN);
     SPI.setTX(TRANSMIT_PIN);
     SPI.setRX(RECEIVE_PIN);
-    SPI.setCS(CHIP_SELECT_PIN);
+    SPI.setCS(SD_CARD_CHIP_SELECT_PIN);
+    gpio_init_val(WRITE_PROTECT_PIN, GPIO_IN, false);
+    gpio_init_val(FRAM_CHIP_SELECT_PIN, GPIO_OUT, true);
+
 
     // Load the game   
-    while (!SD.begin(CHIP_SELECT_PIN)) { // wait for SD card
+    while (!SD.begin(SD_CARD_CHIP_SELECT_PIN)) { // wait for SD card
         sleep_ms(1000);
     }
     File romFile = SD.open("boxingv1.bin");
     if (romFile) {
         gpio_put(LED_BUILTIN, true); // Turn on LED to indicate success
-        romFile.read((uint8_t*) (program_rom + 0x800), min(romFile.size(), 0xF7FF)); // Read up to 62K into program_rom
+        sleep_ms(500);
+        gpio_put(LED_BUILTIN, false);
+        sleep_ms(500);
+        gpio_put(LED_BUILTIN, true);
+
+        uint8_t magic_buffer[17] = {0};
+        romFile.read((uint8_t*) magic_buffer, 1); // Read up to 1 byte into magic_buffer
+        if (magic_buffer[0] == 0x55) { // .bin file
+            romFile.seek(0, SeekSet);
+            romFile.read((uint8_t*) (program_rom + 0x800), min(romFile.size(), 0xF7FF)); // Read up to 62K into program_rom
+        } else if (magic_buffer[0] == 'C' && romFile.size() >= 64) { // possible .chf file
+            romFile.seek(0, SeekSet);
+            romFile.read((uint8_t*) magic_buffer, 16); // Read 16 bytes into magic_buffer
+            if (strcmp((char*) magic_buffer, "CHANNEL F       ") == 0) { // .chf file
+                romFile.seek(0, SeekSet);
+                read_chf_file(program_rom, romFile);
+            }
+        } // else BAD_FILE
+
         romFile.close();
 
         /* Default Memory Map
-                  |---------|
-           0x0000 |   ROM   |
+           0x0000 |---------|
+                  |  BIOS   |
+           0x0800 |---------|
+                  |   ROM   |
                   |         |
+           0x2800 |---------|
+                  |   RAM   |
+           0x3000 |---------|
+                  |   ROM   |
                   |         |
-                  |         |
-                  |---------|
-           0x2800 |   RAM   |
-                  |---------|
-           0x3000 |   ROM   |
-                  |---------|
-           0x3800 |   LED   |
-                  |---------|
-           0x4000 |   ROM   |
                   :         :
                   :         :
+                  |         |
+           0xFFFF |---------|
         */
 
         // Setup default ports
