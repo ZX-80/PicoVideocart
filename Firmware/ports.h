@@ -8,7 +8,7 @@
  *    - https://channelf.se/veswiki/index.php?title=Port
  *  - Two can be found on the 3870 Single-Chip Microcomputer & 3871 PIO
  *  - Four can be found on the 3853 SMI
- *  - Two are used to connect a 2102 SRAM
+ *  - Four are used to connect a 2102 SRAM
  *  - The remaining addresses were never used by any official Channel F products
  *
  *  ### Default Port Assignments
@@ -21,12 +21,14 @@
  *   5              | PSU              | sound and vertical video position
  *   6              | MK 3870/3871     | interrupt control port
  *   7              | MK 3870/3871     | binary Timer
- *   12             | 3853 SMI         | programmable interrupt vector (upper byte)
- *   13             | 3853 SMI         | programmable interrupt vector (lower byte)
- *   14             | 3853 SMI         | interrupt control port
- *   15             | 3853 SMI         | programmable timer
- *   24             | Videocart 10/18  | 2102 SRAM
- *   25             | Videocart 10/18  | 2102 SRAM
+ *   C              | 3853 SMI         | programmable interrupt vector (upper byte)
+ *   D              | 3853 SMI         | programmable interrupt vector (lower byte)
+ *   E              | 3853 SMI         | interrupt control port
+ *   F              | 3853 SMI         | programmable timer
+ *   20             | Videocart 18     | 2102 SRAM
+ *   21             | Videocart 18     | 2102 SRAM
+ *   24             | Videocart 10     | 2102 SRAM
+ *   25             | Videocart 10     | 2102 SRAM
  */
 
 #pragma once
