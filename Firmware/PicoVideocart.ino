@@ -604,4 +604,19 @@ void setup() {
     }
 };
 
-void loop() {};
+bool old_write_protect = false;
+void loop() {
+    // Re-run setup if SD card inserted
+    // FIXME: make a SD_DETECT function in gpio.hpp
+    sleep_ms(250);
+    if (gpio_get(WRITE_PROTECT_PIN) != old_write_protect) {
+        if (old_write_protect) {
+            sleep_ms(250);
+            if (gpio_get(WRITE_PROTECT_PIN) == 0) {
+                SD.end();
+                setup();
+            }
+        }
+        old_write_protect = gpio_get(WRITE_PROTECT_PIN);
+    }
+};
