@@ -33,6 +33,8 @@
 
 #pragma once
 
+#include "file_cache.h"
+
 /** \brief Abstract base class for ports 
  * 
  * \details This interface is used by the Videocart emulation code to read and

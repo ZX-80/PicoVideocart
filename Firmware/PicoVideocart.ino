@@ -10,8 +10,9 @@
  */
 
 #include "ports.h"
-#include "error.h"
+#include "error.hpp"
 #include "no_sd_rom.h"
+#include "loader.h"
 
 #include <SPI.h>
 #include <SD.h>
@@ -486,59 +487,6 @@ constexpr uint8_t SD_CARD_CHIP_SELECT_PIN = 5;
 constexpr uint8_t FRAM_CHIP_SELECT_PIN = 1;
 constexpr uint8_t WRITE_PROTECT_PIN = 4;
 
-struct __attribute__((packed)) chf_header {
-    char magic_number[16];
-    uint32_t header_length;
-    uint8_t minor_version;
-    uint8_t major_version;
-    uint16_t hardware_type;
-    uint64_t reserved;
-    uint8_t title_length;
-};
-struct __attribute__((packed)) chip_header {
-    char magic_number[4];
-    uint32_t packet_length;
-    uint16_t chip_type;
-    uint16_t bank_number;
-    uint16_t load_address;
-    uint16_t size;
-};
-
-void read_chf_file(uint8_t program_rom[], File &romFile) {
-    // It's guaranteed the first 16 bytes are valid & the file size is >= 64 (file_header[48] + chip_header[16])
-
-    // read header
-    chf_header header;
-    romFile.read((uint8_t*) &header, sizeof(chf_header));
-
-    // read title
-    char title[257] = {0};
-    romFile.read((uint8_t*) &title, header.title_length + 1);
-    romFile.seek(header.header_length, SeekSet); // skip padding
-
-    // read chip packets
-    chip_header ch;
-    size_t header_start = romFile.position();
-    romFile.read((uint8_t*) &ch, sizeof(ch));
-    while (strncmp(ch.magic_number, "CHIP", 4) == 0) {
-        //set attribute and pull data
-        memset(program_attribute + ch.load_address, ch.chip_type, ch.size);
-        size_t chip_types_length = sizeof(ChipTypes) / sizeof(ChipTypes[0]);
-        if (ch.chip_type < chip_types_length && ChipTypes[ch.chip_type].has_data()) {
-            romFile.read((uint8_t*) (program_rom + ch.load_address), ch.size);
-            romFile.seek(header_start + ch.packet_length, SeekSet); // skip padding
-        }
-        
-        // next packet
-        if ((romFile.size() - romFile.position()) >= 16) {
-            header_start = romFile.position();
-            romFile.read((uint8_t*) &ch, sizeof(ch));
-        } else {
-            break;
-        }
-    }
-}
-
 void setup() {
 
     // setup SD card pins
@@ -555,53 +503,24 @@ void setup() {
         sleep_ms(1000);
     }
     File romFile = SD.open("boot.bin");
-    if (romFile) {
-        gpio_put(LED_BUILTIN, true); // Turn on LED to indicate success
-        sleep_ms(500);
-        gpio_put(LED_BUILTIN, false);
-        sleep_ms(500);
-        gpio_put(LED_BUILTIN, true);
+    load_game(romFile);
 
-        uint8_t magic_buffer[17] = {0};
-        romFile.read((uint8_t*) magic_buffer, 1); // Read up to 1 byte into magic_buffer
-        if (magic_buffer[0] == 0x55) { // .bin file
-            romFile.seek(0, SeekSet);
-            romFile.read((uint8_t*) (program_rom + 0x800), min(romFile.size(), 0xF7FF)); // Read up to 62K into program_rom
-        } else if (magic_buffer[0] == 'C' && romFile.size() >= 64) { // possible .chf file
-            romFile.seek(0, SeekSet);
-            romFile.read((uint8_t*) magic_buffer, 16); // Read 16 bytes into magic_buffer
-            if (strcmp((char*) magic_buffer, "CHANNEL F       ") == 0) { // .chf file
-                romFile.seek(0, SeekSet);
-                read_chf_file(program_rom, romFile);
-            }
-        } // else BAD_FILE
-
-        romFile.close();
-
-        /* Default Memory Map
-           0x0000 |---------|
-                  |  BIOS   |
-           0x0800 |---------|
-                  |   ROM   |
-                  |         |
-           0x2800 |---------|
-                  |   RAM   |
-           0x3000 |---------|
-                  |   ROM   |
-                  |         |
-                  :         :
-                  :         :
-                  |         |
-           0xFFFF |---------|
-        */
-
-        // Setup default ports
-        IOPorts[0x24] = new Sram2102(0);
-        IOPorts[0x25] = new Sram2102(1);
-
-    } else {
-        blink_code(BLINK::NO_VALID_FILES);
-    }
+    /* Default Memory Map
+        0x0000 |---------|
+                |  BIOS   |
+        0x0800 |---------|
+                |   ROM   |
+                |         |
+        0x2800 |---------|
+                |   RAM   |
+        0x3000 |---------|
+                |   ROM   |
+                |         |
+                :         :
+                :         :
+                |         |
+        0xFFFF |---------|
+    */
 };
 
 bool old_write_protect = false;
