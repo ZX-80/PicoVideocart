@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "chips.h"
+#include "chips.hpp"
 #include "error.hpp"
-#include "ports.h"
+#include "ports.hpp"
 
 #include <SPI.h>
 #include <SD.h>

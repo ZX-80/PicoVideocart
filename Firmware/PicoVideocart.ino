@@ -9,10 +9,10 @@
  * Created 2022 by 3DMAZE @ AtariAge
  */
 
-#include "ports.h"
+#include "ports.hpp"
 #include "error.hpp"
-#include "no_sd_rom.h"
-#include "loader.h"
+#include "no_sd_rom.hpp"
+#include "loader.hpp"
 
 #include <SPI.h>
 #include <SD.h>

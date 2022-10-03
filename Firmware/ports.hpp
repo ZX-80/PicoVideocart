@@ -1,4 +1,4 @@
-/** \file ports.h
+/** \file ports.hpp
  *  \brief Channel F I/O Ports
  *
  *  \details The Channel F has 256 addressable I/O ports that it communicates with via the
@@ -33,7 +33,7 @@
 
 #pragma once
 
-#include "file_cache.h"
+#include "file_cache.hpp"
 
 /** \brief Abstract base class for ports 
  * 
