@@ -538,4 +538,21 @@ void loop() {
         }
         old_write_protect = gpio_get(WRITE_PROTECT_PIN);
     }
+
+    if (load_new_game_trigger) {
+        load_new_game_trigger = false;
+        while (pc0 >= 0x800) {
+            ; // We need to wait until the menu has jumped to 0 before disconnecting
+        }
+
+        // Get file from index
+        File romFile;
+        File dir = SD.open("/");
+        dir.rewindDirectory();
+        uint16_t file_index = static_cast<Launcher*>(IOPorts[0xFF])->file_index;
+        for (uint32_t i = 0; i <= file_index; i++) {
+            romFile = dir.openNextFile();
+        }
+        load_game(romFile);
+    }
 };

@@ -1,41 +1,46 @@
 /** \file ports.hpp
- *  \brief Channel F I/O Ports
+ * 
+ * \brief Channel F I/O Ports
  *
- *  \details The Channel F has 256 addressable I/O ports that it communicates with via the
- *  OUT(S) and IN(S) instructions.
+ * \details The Channel F has 256 addressable I/O ports that it communicates with via the
+ * OUT(S) and IN(S) instructions.
  *
- *  - Four of these ports are assigned to the CPU/PSU
- *    - https://channelf.se/veswiki/index.php?title=Port
- *  - Two can be found on the 3870 Single-Chip Microcomputer & 3871 PIO
- *  - Four can be found on the 3853 SMI
- *  - Four are used to connect a 2102 SRAM
- *  - The remaining addresses were never used by any official Channel F products
+ * - Four of these ports are assigned to the CPU/PSU
+ *   - https://channelf.se/veswiki/index.php?title=Port
+ * - Two can be found on the 3870 Single-Chip Microcomputer & 3871 PIO
+ * - Four can be found on the 3853 SMI
+ * - Four are used to connect a 2102 SRAM
+ * - The remaining addresses were never used by any official Channel F products
  *
- *  ### Default Port Assignments
+ * ### Default Port Assignments
  *
- *   Port Address   | Device           | Description
- *   ---------------|------------------|-------------
- *   0              | CPU              | buttons and Video RAM
- *   1              | CPU              | right controller and pixel palette
- *   4              | PSU              | left controller and horizontal video position
- *   5              | PSU              | sound and vertical video position
- *   6              | MK 3870/3871     | interrupt control port
- *   7              | MK 3870/3871     | binary Timer
- *   C              | 3853 SMI         | programmable interrupt vector (upper byte)
- *   D              | 3853 SMI         | programmable interrupt vector (lower byte)
- *   E              | 3853 SMI         | interrupt control port
- *   F              | 3853 SMI         | programmable timer
- *   20             | Videocart 18     | 2102 SRAM
- *   21             | Videocart 18     | 2102 SRAM
- *   24             | Videocart 10     | 2102 SRAM
- *   25             | Videocart 10     | 2102 SRAM
+ *  Port Address   | Device           | Description
+ *  ---------------|------------------|-------------
+ *  0              | CPU              | buttons and Video RAM
+ *  1              | CPU              | right controller and pixel palette
+ *  4              | PSU              | left controller and horizontal video position
+ *  5              | PSU              | sound and vertical video position
+ *  6              | MK 3870/3871     | interrupt control port
+ *  7              | MK 3870/3871     | binary Timer
+ *  C              | 3853 SMI         | programmable interrupt vector (upper byte)
+ *  D              | 3853 SMI         | programmable interrupt vector (lower byte)
+ *  E              | 3853 SMI         | interrupt control port
+ *  F              | 3853 SMI         | programmable timer
+ *  20             | Videocart 18     | 2102 SRAM
+ *  21             | Videocart 18     | 2102 SRAM
+ *  24             | Videocart 10     | 2102 SRAM
+ *  25             | Videocart 10     | 2102 SRAM
  */
 
 #pragma once
 
+#include "no_sd_rom.hpp"
 #include "file_cache.hpp"
 
-/** \brief Abstract base class for ports 
+inline constexpr uint16_t SRAM_START_ADDR = 0x2800;
+inline bool load_new_game_trigger = false;
+
+/*! \brief Abstract base class for ports 
  * 
  * \details This interface is used by the Videocart emulation code to read and
  * write to I/O ports. New devices can be added by implementing this 
@@ -47,10 +52,11 @@ class IOPort {
         virtual void write(uint8_t) = 0;
 };
 
-/** \brief A mapping from addresses to I/O ports */
-extern IOPort* IOPorts[256];
+/*! \brief A mapping from addresses to I/O ports */
+// extern IOPort* IOPorts[256];
+inline IOPort* IOPorts[256];
 
-/**
+/*!
  * \brief Implementation of a 2102 SRAM IC
  *
  * \details The 2102 is an asynchronous 1024 x 1-bit static random access
@@ -108,5 +114,78 @@ class Sram2102 : public IOPort {
                 sramData[address] = portA & IN_FLAG;
             }
             portA = sramData[address] << 7 | portA & ~OUT_FLAG;
+        }
+};
+
+/* 
+ * Multi-menu port
+ * $FF
+ * OUT $FF --> $01 Next file: place previous file title in [$2800, $2812)
+ *             $02 Select: begin the loading process
+ *             $04 Prev file: place next file title in [$2800, $2812)
+ *             $08 None active: no controller buttons are active (needed to allow repeat $01/$04)
+ * Loading process:
+ *  1.  (Menu) --> $02 --> (Pico)
+ *   
+ *  2.  (Pico) sets $0800 to $00
+ *      (Pico) wait until PC0 < $0800
+ * 
+ *  3.  (Menu) jump to $0000         
+ * 
+ *  4.  (Pico) disconnect memory
+ *      (Pico) rewrite memory/ports etc
+ *      (Pico) reconnect memory
+*/
+class Launcher : public IOPort {
+    private:
+        file_info (&file_data)[FOLDER_LIMIT];
+        inline static uint8_t previous_command = 0;
+        inline static uint8_t command = 0;
+        static constexpr uint8_t NEXT_FLAG = 0x1;
+        static constexpr uint8_t SELECT_FLAG = 0x2;
+        static constexpr uint8_t PREV_FLAG = 0x4;
+        static constexpr uint8_t NONE_FLAG = 0x8;
+
+    public:
+        inline static uint16_t file_index = 0;
+
+        Launcher(file_info (&file_data)[FOLDER_LIMIT]): file_data(file_data) {
+            previous_command = 0;
+        }
+
+        uint8_t read() {return 0xFF;}
+
+        void write(uint8_t command) {
+            if (command != previous_command) {
+                if (DIR_LIMIT == 0) {
+                    string_copy((char*)program_rom+SRAM_START_ADDR+2, (char*)"No Data", 32, true, '\0');
+                } else {
+                    switch (command) {
+                        case NEXT_FLAG:
+                            if (file_index != DIR_LIMIT - 1) {
+                                file_index++;
+                            }
+                            string_copy((char*)program_rom+SRAM_START_ADDR+2, file_data[file_index].title, 32, true, '\0');
+                            break;
+                        case PREV_FLAG:
+                            if (file_index != 0) {
+                                file_index--;
+                            }
+                            string_copy((char*)program_rom+SRAM_START_ADDR+2, file_data[file_index].title, 32, true, '\0');
+                            break;
+                        case SELECT_FLAG:
+                            if (file_data[file_index].isFile) {
+                                load_new_game_trigger = true; // FIXME: talk to core 0 through the stack instead
+                            }
+                            break;
+                        case NONE_FLAG:
+                            if (previous_command == 0) {
+                                string_copy((char*)program_rom+SRAM_START_ADDR+2, file_data[file_index].title, 32, true, '\0');
+                            }
+                            break;
+                    }
+                }
+            }
+            previous_command = command;
         }
 };
