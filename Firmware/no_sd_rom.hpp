@@ -4,5 +4,4 @@
 
 #pragma once
 
-uint8_t program_attribute[0x10000];
 uint8_t program_rom[0x10000]; // 64K ROMs
