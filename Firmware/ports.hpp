@@ -34,7 +34,7 @@
 
 #pragma once
 
-#include "no_sd_rom.hpp"
+#include "default_rom.hpp"
 #include "file_cache.hpp"
 
 inline constexpr uint16_t SRAM_START_ADDR = 0x2800;

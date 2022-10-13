@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "no_sd_rom.hpp"
+#include "default_rom.hpp"
 
 inline uint8_t program_attribute[0x10000]; // Determines chip type for that address
 
@@ -97,3 +97,67 @@ ChipType* ChipTypes[] = {new ROM_CT(), new RAM_CT(), new LED_CT(), new NVRAM_CT(
 // ChipTypes[RAM_CT::id] = new RAM_CT();
 // ChipTypes[LED_CT::id] = new LED_CT();
 // ChipTypes[NVRAM_CT::id] = new NVRAM_CT();
+
+// Program ROM functions
+
+/*! \brief Get the content of the memory address in the program ROM
+ *
+ * \param address The location of the data
+ * \return The content of the memory address
+ */
+__force_inline uint8_t read_program_byte(uint16_t address) {   
+    // nullcheck
+    // ChipTypes[program_attribute[address]]->read(address);
+    
+    // switch (program_attribute[address]) {
+    //     case ROM_CT::id:
+    //         return ROM_CT.read(address);
+    //     case RAM_CT::id:
+    //         return RAM_CT.read(address);
+    //     case LED_CT::id:
+    //         return LED_CT.read(address);
+    //     case NVRAM_CT::id:
+    //         return NVRAM_CT.read(address);
+    //     default:
+    //         return 0xFF;
+    // }
+
+    // switch (program_attribute[address]) {
+    //     case ROM_CT::id:
+    //     case RAM_CT::id:
+    //     case LED_CT::id:
+    //     case NVRAM_CT::id:
+    //         return program_rom[address];
+    //     default:
+    //         return 0xFF;
+    // }
+
+    return program_rom[address];
+}
+
+/*! \brief Set the content of the memory address in the program ROM
+ *
+ * \param address The location to write the data
+ * \param data The byte to be written
+ */
+__force_inline void write_program_byte(uint16_t address, uint8_t data) {
+    switch (program_attribute[address]) {
+        case RAM_CT::id:
+            program_rom[address] = data;
+    }
+
+    //nullcheck
+    // ChipTypes[program_attribute[address]]->write(address, data);
+
+    // switch (program_attribute[address]) {
+    //     case RAM_CT::id:
+    //         RAM_CT.write(address, data);
+    //         break;
+    //     case LED_CT::id:
+    //         LED_CT.write(address, data);
+    //         break;
+    //     case NVRAM_CT::id:
+    //         LED_CT.write(address, data);
+    //         break;
+    // }
+}
