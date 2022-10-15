@@ -5,8 +5,6 @@
  * \details A Videocart that allows games to be loaded from an SD card and
  * played on a Fairchild Channel F.
  * 
- * See the included schematic for wiring details.
- * 
  * Created 2022 by 3DMAZE @ AtariAge
  * 
  * ### Limitations
@@ -31,10 +29,10 @@
 #include <SD.h>
 
 #include <pico/sem.h>
-#include <pico/stdlib.h>            // Overclocking functions
-#include <pico/multicore.h>         // allow code to be run on both cores
+#include <pico/stdlib.h>               // Overclocking functions
+#include <pico/multicore.h>            // Allow code to be run on both cores
 #include <hardware/gpio.h>
-#include <hardware/vreg.h>          // Voltage control for overclocking
+#include <hardware/vreg.h>             // Voltage control for overclocking
 #include <hardware/structs/sio.h>
 #include <hardware/structs/iobank0.h>
 #include <hardware/structs/xip_ctrl.h>

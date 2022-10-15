@@ -53,7 +53,6 @@ class IOPort {
 };
 
 /*! \brief A mapping from addresses to I/O ports */
-// extern IOPort* IOPorts[256];
 inline IOPort* IOPorts[256];
 
 /*!
@@ -117,25 +116,33 @@ class Sram2102 : public IOPort {
         }
 };
 
-/* 
- * Multi-menu port
- * $FF
- * OUT $FF --> $01 Next file: place previous file title in [$2800, $2812)
- *             $02 Select: begin the loading process
- *             $04 Prev file: place next file title in [$2800, $2812)
- *             $08 None active: no controller buttons are active (needed to allow repeat $01/$04)
- * Loading process:
- *  1.  (Menu) --> $02 --> (Pico)
- *   
- *  2.  (Pico) sets $0800 to $00
- *      (Pico) wait until PC0 < $0800
+/*!
+ * \brief Communicate SD card contents through a port
  * 
- *  3.  (Menu) jump to $0000         
+ * \details The launcher port allows a menu program to query the Pico for filesystem information,
+ * as well as launch a specified program.
  * 
- *  4.  (Pico) disconnect memory
- *      (Pico) rewrite memory/ports etc
- *      (Pico) reconnect memory
-*/
+ * ### Commands
+ * 
+ * | Byte from OUT $FF | Action name | Action
+ * |-------------------|-------------|-------
+ * | $01               | Next file   | Place previous file title in [$2800, $2900)
+ * | $02               | Select      | Begin the loading process
+ * | $04               | Prev file   | Place next file title in [$2800, $2900)
+ * | $08               | None active | No controller buttons are active (needed to ignore repeat $01/$04)
+ * 
+ * ### Loading Process 
+ * 
+ * | Stage | BIOS         | Menu                       | Pico
+ * |-------|--------------|----------------------------|-----
+ * | 1     |              | Sends $02 (select) command |
+ * | 2     |              | Jumps to $0000             | Sets $0800 to $00
+ * |       |              |                            | Wait until PC0 < $0800
+ * | 3     |              |                            | Disconnect memory
+ * |       |              |                            | Rewrite memory, ports, etc.
+ * |       |              |                            | Reconnect memory
+ * | 4     | Runs program |                            |
+ */
 class Launcher : public IOPort {
     private:
         file_info (&file_data)[FOLDER_LIMIT];

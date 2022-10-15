@@ -15,7 +15,7 @@
 #include "gpio.hpp"
 #include "ports.hpp"
 
-inline uint8_t romc = 0x1C;   // IDLE
+inline uint8_t romc = 0x1C; // IDLE
 inline uint8_t dbus = 0x00;
 inline uint16_t pc0 = 0x00;
 inline uint16_t pc1 = 0x00;

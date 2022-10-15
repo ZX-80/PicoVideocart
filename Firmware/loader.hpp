@@ -1,6 +1,14 @@
 /** \file loader.hpp
  * 
- * \brief Handles most code related to loading ROMS
+ * \brief Handles loading both .bin and .chf ROM files
+ * 
+ * \details BIN files are just raw chunks of ROM that can be loaded directly
+ * into memory. CHF files are a special container specifically designed for
+ * Channel F programs, providing all the necessary information to preserve
+ * and load it.
+ * 
+ * Refer to the [CHF repository](https://github.com/ZX-80/Videocart-Image-Format)
+ * for more information.
  */
 
 #pragma once
@@ -70,7 +78,7 @@ void read_chf_file(uint8_t program_rom[], File &romFile) { // FIXME: just use th
 }
 
 void __not_in_flash_func(load_game)(File &romFile) {
-    for (uint16_t i = 0; i <= 0xFF; i++) { // unload IOPorts
+    for (uint16_t i = 0; i <= 0xFF; i++) { // Unload IOPorts
        delete IOPorts[i];
        IOPorts[i] = nullptr;
     }
@@ -86,29 +94,29 @@ void __not_in_flash_func(load_game)(File &romFile) {
         romFile.read((uint8_t*) magic_buffer, 1); // Read up to 1 byte into magic_buffer
         if (magic_buffer[0] == 0x55) { // .bin file
 
-                // TODO: perform after read to memory, use $FF (restricted) for ROM that isn't loaded (i.e. 64K - filesize)
-                // Assume hardware type 2 (ROM+RAM) with 2K of RAM at 0x2800,
-                // fill 64K with RESERVED, fill ROM with <filesize> ROM, fill 0x2800 with RAM
-                // memset(program_attribute, RESERVED_CT::ID, 0x800);  BIOS
-                // memset(program_attribute + 0x800, ROM_CT::id, 0xF800);  ROM
-                memset(program_attribute + 0x2800, RAM_CT::id, 0x800);
+            // TODO: perform after read to memory, use $FF (restricted) for ROM that isn't loaded (i.e. 64K - filesize)
+            // Assume hardware type 2 (ROM+RAM) with 2K of RAM at 0x2800,
+            // fill 64K with RESERVED, fill ROM with <filesize> ROM, fill 0x2800 with RAM
+            // memset(program_attribute, RESERVED_CT::ID, 0x800);  BIOS
+            // memset(program_attribute + 0x800, ROM_CT::id, 0xF800);  ROM
+            memset(program_attribute + 0x2800, RAM_CT::id, 0x800);
 
-                // Clear RAM: attempt at fixing hangman
-                memset(program_rom + 0x2800, 0, 0x800);
+            // Clear RAM: attempt at fixing hangman
+            memset(program_rom + 0x2800, 0, 0x800);
 
-                // Assume 2012 SRAM on ports $20/$21/$24/$25
-                IOPorts[0x20] = new Sram2102(0);
-                IOPorts[0x21] = new Sram2102(1);
-                IOPorts[0x24] = new Sram2102(0);
-                IOPorts[0x25] = new Sram2102(1);
-                IOPorts[0xFF] = new Launcher(file_data);
+            // Assume 2012 SRAM on ports $20/$21/$24/$25
+            IOPorts[0x20] = new Sram2102(0);
+            IOPorts[0x21] = new Sram2102(1);
+            IOPorts[0x24] = new Sram2102(0);
+            IOPorts[0x25] = new Sram2102(1);
+            IOPorts[0xFF] = new Launcher(file_data);
 
-                // Read up to 62K into program_rom
+            // Read up to 62K into program_rom
             romFile.seek(0, SeekSet);
             romFile.read((uint8_t*) (program_rom + 0x800), min(romFile.size(), 0xF7FF)); // Read up to 62K into program_rom
-        } else if (magic_buffer[0] == 'C' && romFile.size() >= 64) { // possible .chf file
+        } else if (magic_buffer[0] == 'C' && romFile.size() >= 64) {                     // possible .chf file
             romFile.seek(0, SeekSet);
-            romFile.read((uint8_t*) magic_buffer, 16); // Read 16 bytes into magic_buffer
+            romFile.read((uint8_t*) magic_buffer, 16);                   // Read 16 bytes into magic_buffer
             if (strcmp((char*) magic_buffer, "CHANNEL F       ") == 0) { // .chf file
                 romFile.seek(0, SeekSet);
                 read_chf_file(program_rom, romFile);
