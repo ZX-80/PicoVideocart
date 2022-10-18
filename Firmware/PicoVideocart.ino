@@ -13,7 +13,6 @@
  * This shouldn't be a problem until there are more than 256 chip types defined in the standard.
  */
 
-// TODO: read/write memory according to program_attribute
 // TODO: Disconnecting when loading
 // TODO: Minor menu work (remove ".bin", use .chf title, reload menu when holding reset, etc.) 
 // TODO: Special char support 
@@ -21,6 +20,7 @@
 // TODO: Directories
 // TODO: Double reset issue
 // TODO: Cache(?) issue
+// TODO: hangman issue
 
 #include "loader.hpp"
 #include "romc.hpp"
@@ -111,13 +111,20 @@ void __not_in_flash_func(setup)() { // Core 0
     gpio_init_val(FRAM_CHIP_SELECT_PIN, GPIO_OUT, true);
 
     // Load the game
-    //FIXME: SD.begin(SD_CARD_CHIP_SELECT_PIN, SD_SCK_MHZ(50))
-    // fall back to 25, then 4 if it doesn't work (but only if there's an SD inserted)
-    while (!SD.begin(SD_CARD_CHIP_SELECT_PIN)) { // wait for SD card
+    // TODO: fall back to 25, then 4 if it doesn't work (but only if there's an SD inserted)
+    while (!SD.begin(SD_CARD_CHIP_SELECT_PIN, SD_SCK_MHZ(50))) { // wait for SD card
         sleep_ms(250);
     }
+    
+    // Initialize chip types
+    ChipTypes[ROM_CT::id] = new ROM_CT();
+    ChipTypes[RAM_CT::id] = new RAM_CT();
+    ChipTypes[LED_CT::id] = new LED_CT();
+    ChipTypes[NVRAM_CT::id] = new NVRAM_CT();
+
     File romFile = SD.open("boot.bin");
     load_game(romFile);
+    program_attribute[0x800] = ROM_CT::id;
 
     uint16_t file_counter = 0;
     File dir = SD.open("/");
@@ -156,6 +163,7 @@ void __not_in_flash_func(loop)() { // Core 0
         while (pc0 >= 0x800) {
             ; // We need to wait until the menu has jumped to 0 before disconnecting
         }
+        // sleep_ms(100);
 
         // Get file from index
         File romFile;
@@ -166,5 +174,6 @@ void __not_in_flash_func(loop)() { // Core 0
             romFile = dir.openNextFile();
         }
         load_game(romFile);
+        program_attribute[0x800] = ROM_CT::id;
     }
 };

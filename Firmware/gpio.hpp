@@ -61,8 +61,6 @@ inline constexpr uint8_t DBUS_OUT_CE_PIN = 14;
 
 // Core 1 variables
 extern uint8_t dbus;                                     // Written to by write_dbus
-inline constexpr uint16_t VIDEOCART_START_ADDR = 0x800;  // Videocart address space: [0x0800 - 0x10000)
-inline constexpr uint16_t VIDEOCART_SIZE = 0xF800;       // 62K
 
 // Core 1 functions
 
@@ -100,7 +98,7 @@ __force_inline uint8_t read_dbus() {
  * \param addr_source The address being targeted
  */
 __force_inline void write_dbus(uint8_t value, uint16_t addr_source) {
-    if (addr_source >= VIDEOCART_START_ADDR && addr_source < (VIDEOCART_START_ADDR + VIDEOCART_SIZE)) { //FIXME: assume flashcart takes full address space
+    if (addr_source >= 0x800) {
         dbus = value;
         gpio_put(DBUS_IN_CE_PIN, true);              // Disable input buffer
         gpio_clr_mask(0xFF << DBUS0_PIN);            // Write to DBUS
@@ -119,4 +117,4 @@ inline constexpr uint8_t FRAM_CHIP_SELECT_PIN = 1;
 inline constexpr uint8_t WRITE_PROTECT_PIN = 4;
 
 // Core 0 variables
-bool old_write_protect = gpio_get(WRITE_PROTECT_PIN); // FIXME: change to bool old_write_protect = false;
+bool old_write_protect = false;

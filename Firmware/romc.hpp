@@ -277,7 +277,7 @@ __force_inline void execute_romc() {
              * back onto the data bus).
              */
             if (IOPorts[io_address] != nullptr) {
-                write_dbus(IOPorts[io_address]->read(), VIDEOCART_START_ADDR);
+                write_dbus(IOPorts[io_address]->read(), 0x800);
             }
             break;
         case 0x1C:

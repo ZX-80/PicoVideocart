@@ -42,7 +42,7 @@ struct __attribute__((packed)) chip_header {
  * 
  * \param romFile the CHF file to load
  */
-void read_chf_file(uint8_t program_rom[], File &romFile) { // FIXME: just use the global program_rom
+void read_chf_file(File &romFile) {
     // It's guaranteed the first 16 bytes are valid & the file size is >= 64 (file_header[48] + chip_header[16])
 
     // Read header
@@ -86,23 +86,21 @@ void __not_in_flash_func(load_game)(File &romFile) {
     // TODO: should probably zero the following (although writing to undefined memory could simply be undefined)
     // program_attribute
     // program_rom
-    // A: Zero the attribute. Then any attempt to access ROM will return 0xFF
+    memset(program_attribute, RESERVED_CT::id, 0x10000);
+    memset(program_rom, 0xFF, 0x10000);
     
 
     if (romFile) {
         uint8_t magic_buffer[17] = {0};
         romFile.read((uint8_t*) magic_buffer, 1); // Read up to 1 byte into magic_buffer
         if (magic_buffer[0] == 0x55) { // .bin file
-
-            // TODO: perform after read to memory, use $FF (restricted) for ROM that isn't loaded (i.e. 64K - filesize)
-            // Assume hardware type 2 (ROM+RAM) with 2K of RAM at 0x2800,
-            // fill 64K with RESERVED, fill ROM with <filesize> ROM, fill 0x2800 with RAM
-            // memset(program_attribute, RESERVED_CT::ID, 0x800);  BIOS
-            // memset(program_attribute + 0x800, ROM_CT::id, 0xF800);  ROM
+        
+            // Assume hardware type 2 (ROM+RAM) with 2K of RAM at 0x2800
+            if (romFile.size() > 0) {
+                memset(program_attribute + 0x801, ROM_CT::id, min(romFile.size(), 0xF7FF)-1);
+            }
+            memset(program_rom + 0x2800, 0, 0x800); // Clear RAM
             memset(program_attribute + 0x2800, RAM_CT::id, 0x800);
-
-            // Clear RAM: attempt at fixing hangman
-            memset(program_rom + 0x2800, 0, 0x800);
 
             // Assume 2012 SRAM on ports $20/$21/$24/$25
             IOPorts[0x20] = new Sram2102(0);
@@ -114,12 +112,14 @@ void __not_in_flash_func(load_game)(File &romFile) {
             // Read up to 62K into program_rom
             romFile.seek(0, SeekSet);
             romFile.read((uint8_t*) (program_rom + 0x800), min(romFile.size(), 0xF7FF)); // Read up to 62K into program_rom
-        } else if (magic_buffer[0] == 'C' && romFile.size() >= 64) {                     // possible .chf file
+
+            // sleep_ms(100);
+        } else if (magic_buffer[0] == 'C' && romFile.size() >= 64) {     // Possible .chf file
             romFile.seek(0, SeekSet);
             romFile.read((uint8_t*) magic_buffer, 16);                   // Read 16 bytes into magic_buffer
             if (strcmp((char*) magic_buffer, "CHANNEL F       ") == 0) { // .chf file
                 romFile.seek(0, SeekSet);
-                read_chf_file(program_rom, romFile);
+                read_chf_file(romFile);
             }
         }
         romFile.close();

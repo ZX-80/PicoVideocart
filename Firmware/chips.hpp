@@ -91,12 +91,8 @@ class RESERVED_CT : public ChipType {
         void write(uint16_t address, uint8_t data) {}
         bool has_data() {return false;}
 };
-ChipType* ChipTypes[] = {new ROM_CT(), new RAM_CT(), new LED_CT(), new NVRAM_CT()}; //FIXME: use below format
-// ChipType* ChipTypes[256];
-// ChipTypes[ROM_CT::id] = new ROM_CT();
-// ChipTypes[RAM_CT::id] = new RAM_CT();
-// ChipTypes[LED_CT::id] = new LED_CT();
-// ChipTypes[NVRAM_CT::id] = new NVRAM_CT();
+// ChipType* ChipTypes[] = {new ROM_CT(), new RAM_CT(), new LED_CT(), new NVRAM_CT()};
+inline ChipType* ChipTypes[256];
 
 // Program ROM functions
 
@@ -122,17 +118,17 @@ __force_inline uint8_t read_program_byte(uint16_t address) {
     //         return 0xFF;
     // }
 
-    // switch (program_attribute[address]) {
-    //     case ROM_CT::id:
-    //     case RAM_CT::id:
-    //     case LED_CT::id:
-    //     case NVRAM_CT::id:
-    //         return program_rom[address];
-    //     default:
-    //         return 0xFF;
-    // }
+    switch (program_attribute[address]) {
+        case ROM_CT::id:
+        case RAM_CT::id:
+        case LED_CT::id:
+        case NVRAM_CT::id:
+            return program_rom[address];
+        default:
+            return 0xFF;
+    }
 
-    return program_rom[address];
+    // return program_rom[address];
 }
 
 /*! \brief Set the content of the memory address in the program ROM
