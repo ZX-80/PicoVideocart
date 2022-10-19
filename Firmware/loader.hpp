@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include "unicode.hpp"
 #include "chips.hpp"
 #include "error.hpp"
 #include "ports.hpp"
@@ -94,7 +95,7 @@ void __not_in_flash_func(load_game)(File &romFile) {
         uint8_t magic_buffer[17] = {0};
         romFile.read((uint8_t*) magic_buffer, 1); // Read up to 1 byte into magic_buffer
         if (magic_buffer[0] == 0x55) { // .bin file
-        
+
             // Assume hardware type 2 (ROM+RAM) with 2K of RAM at 0x2800
             if (romFile.size() > 0) {
                 memset(program_attribute + 0x801, ROM_CT::id, min(romFile.size(), 0xF7FF)-1);
@@ -126,4 +127,72 @@ void __not_in_flash_func(load_game)(File &romFile) {
     } else {
         blink_code(BLINK::NO_VALID_FILES);
     }
+}
+
+// uint32_t get_filetype(File& file) {
+//     if ... return 'bin';
+//     else if ... return 'chf';
+// }
+
+// struct __attribute__((packed)) chf_header {
+//     char magic_number[16];
+//     uint32_t header_length;
+//     uint8_t minor_version;
+//     uint8_t major_version;
+//     uint16_t hardware_type;
+//     uint64_t reserved;
+//     uint8_t title_length;
+//     char title[257];
+// };
+// void get_chf_header(File& file, chf_header& header) {
+//     romFile.read((uint8_t*) &header, sizeof(chf_header) - sizeof(((chf_header){0}).title));
+//     romFile.read((uint8_t*) &header.title, header.title_length + 1);
+//     romFile.seek(header.header_length, SeekSet); // Skip padding
+// }
+
+bool get_program_title(File& current_file, char* dest_title) {  // from filename or chf data (utf-8 formatted)
+    if (current_file.isDirectory()) {
+        translate_utf8_to_cp437((char*)current_file.name(), dest_title, FILENAME_LIMIT);
+        return true;
+    } else {
+        uint8_t magic_buffer[17] = {0};
+        current_file.read((uint8_t*) magic_buffer, 1); // Read up to 1 byte into magic_buffer
+        current_file.seek(0, SeekSet);
+
+        if (magic_buffer[0] == 'C' && current_file.size() >= 64) {     // Possible .chf file
+            current_file.read((uint8_t*) magic_buffer, 16);                   // Read 16 bytes into magic_buffer
+            current_file.seek(0, SeekSet);
+            if (strcmp((char*) magic_buffer, "CHANNEL F       ") == 0) { // .chf file,  !strcmp vs strcmp==0
+                
+                // Read header
+                chf_header header;
+                current_file.read((uint8_t*) &header, sizeof(chf_header));
+
+                // Read title
+                char title[257] = {0};
+                current_file.read((uint8_t*) &title, header.title_length + 1);
+                current_file.seek(0, SeekSet);
+                translate_utf8_to_cp437(title, dest_title, FILENAME_LIMIT);
+                return true;
+            }
+        } else {
+            uint16_t limit = FILENAME_LIMIT;
+            const char* filename = current_file.name();   // Strip file extension
+            if (magic_buffer[0] == 0x55) {                     // .bin file
+                const char* last_dot = strrchr(filename, '.');   
+                // uint16_t limit = FILENAME_LIMIT;
+                // if (last_dot != NULL) {
+                    // limit = min(last_dot - filename, FILENAME_LIMIT);
+                    // filename[last_dot] = NULL;
+                // }
+
+                // limit = last_dot ? FILENAME_LIMIT : min(last_dot - filename, FILENAME_LIMIT)
+                // translate_utf8_to_cp437(filename, dest_title, FILENAME_LIMIT);
+                uint16_t limit = last_dot ? min(last_dot - filename, FILENAME_LIMIT) : FILENAME_LIMIT;
+            }
+            translate_utf8_to_cp437((char*)filename, dest_title, limit);
+            return true;
+        }
+    }
+    return false;
 }

@@ -21,11 +21,12 @@
 
 #pragma once
 
+inline constexpr uint16_t FILENAME_LIMIT = 32; // Max files displayed per folder
 inline constexpr uint16_t FOLDER_LIMIT = 100; // Max files displayed per folder
 inline uint16_t DIR_LIMIT = 0;                // Max index into file_data
 
 struct __attribute__((packed)) file_info {
-    char title[32];
+    char title[FILENAME_LIMIT+1];
     bool isFile;
 };
 

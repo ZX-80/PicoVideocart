@@ -132,11 +132,14 @@ void __not_in_flash_func(setup)() { // Core 0
     while (current_file) {
         if (current_file.isDirectory()) {
             file_data[file_counter].title[0] = '/';
+            file_data[file_counter].isFile = false;
         } else {
             file_data[file_counter].title[0] = ' ';
+            file_data[file_counter].isFile = true;
         }
-        file_data[file_counter].isFile = !current_file.isDirectory();
-        string_copy((char*) file_data[file_counter].title + 1, (char*)current_file.name(), 30, true, '\0');
+        // file_data[file_counter].isFile = !current_file.isDirectory();
+        get_program_title(current_file, file_data[file_counter].title + 1);
+        // string_copy((char*) file_data[file_counter].title + 1, (char*)current_file.name(), 30, true, '\0');
         file_counter++;
         current_file = dir.openNextFile();
     }
