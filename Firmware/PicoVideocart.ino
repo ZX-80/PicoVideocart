@@ -99,7 +99,7 @@ void __not_in_flash_func(loop1)() { // Core 1
     }
 }
 
-void __not_in_flash_func(setup)() { // Core 0
+void setup() { // Core 0
 
     // Setup SD card pins
     SPI.setSCK(SERIAL_CLOCK_PIN);
@@ -130,17 +130,8 @@ void __not_in_flash_func(setup)() { // Core 0
     File dir = SD.open("/");
     File current_file = dir.openNextFile();
     while (current_file) {
-        if (current_file.isDirectory()) {
-            file_data[file_counter].title[0] = '/';
-            file_data[file_counter].isFile = false;
-        } else {
-            file_data[file_counter].title[0] = ' ';
-            file_data[file_counter].isFile = true;
-        }
-        // file_data[file_counter].isFile = !current_file.isDirectory();
-        get_program_title(current_file, file_data[file_counter].title + 1);
-        // string_copy((char*) file_data[file_counter].title + 1, (char*)current_file.name(), 30, true, '\0');
-        file_counter++;
+        file_data[file_counter].isFile = current_file.isFile();
+        get_program_title(current_file, file_data[file_counter++].title);
         current_file = dir.openNextFile();
     }
     DIR_LIMIT = file_counter;

@@ -1,4 +1,14 @@
-// 00xx | 01xx Table
+/** \file unicode.hpp
+ * 
+ * \brief Handles unicode conversions
+ * 
+ * \details Both the .chf format, and filesystem library use UTF-8 to encode names.
+ * However, the Channel F cannot be expected to handle this format due to its complexity,
+ * thus this information is converted to code page 437 before being presented to any
+ * Channel F menu program.
+ */
+
+// Conversion table for Unicode 0092-00FF and 0192-01FF
 inline constexpr uint8_t TABLE_00_01_MIN = 0x92;
 inline constexpr uint8_t TABLE_00_01_MAX = 0xff;
 uint8_t table_00_01[110] = {
@@ -17,7 +27,8 @@ uint8_t table_00_01[110] = {
     0x95, 0xa2, 0x93, 0x3f, 0x94, 0xf6, 0x3f, 0x97,
     0xa3, 0x96, 0x81, 0x3f, 0x3f, 0x98
 };
-// 03xx Table
+
+// Conversion table for Unicode 0393-03C6
 inline constexpr uint8_t TABLE_03_MIN = 0x93;
 inline constexpr uint8_t TABLE_03_MAX = 0xc6;
 uint8_t table_03[52] = {
@@ -29,7 +40,8 @@ uint8_t table_03[52] = {
     0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0xe3, 0x3f, 0x3f,
     0xe5, 0xe7, 0x3f, 0xed
 };
-// 20xx | 25xx Table
+
+// Conversion table for Unicode 2000-20A7 and 2500-25A7
 inline constexpr uint8_t TABLE_20_25_MIN = 0x0;
 inline constexpr uint8_t TABLE_20_25_MAX = 0xa7;
 uint8_t table_20_25[168] = {
@@ -55,7 +67,8 @@ uint8_t table_20_25[168] = {
     0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f,
     0xfe, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x3f, 0x9e
 };
-// 22xx | 23xx Table
+
+// Conversion table for Unicode 2210-2265 and 2310-2365
 inline constexpr uint8_t TABLE_22_23_MIN = 0x10;
 inline constexpr uint8_t TABLE_22_23_MAX = 0x65;
 uint8_t table_22_23[86] = {
@@ -72,42 +85,56 @@ uint8_t table_22_23[86] = {
     0x3f, 0xf0, 0x3f, 0x3f, 0xf3, 0xf2
 };
 
-uint8_t get_CP437(uint16_t unicode_char) {
-    uint8_t unicode_char_l = unicode_char & 0xFF;
+/*!
+ * \brief Convert a Unicode character to a CP437 character
+ * 
+ * \param unicode_char the Unicode code point
+ * \return A byte representing a code page 437 character 
+ */
+uint8_t unicode_to_cp437(uint16_t unicode_char) {
+    uint8_t unicode_char_low = unicode_char & 0xFF;
     switch (unicode_char >> 8) {
         case 0x00:
-            if (unicode_char_l <= 0x7F) {
-                return unicode_char_l;
+            if (unicode_char_low <= 0x7F) {
+                return unicode_char_low;
             }
             [[fallthrough]];
         case 0x01:
-            if (TABLE_00_01_MIN <= unicode_char_l && unicode_char_l <= TABLE_00_01_MAX) {
-                return table_00_01[unicode_char_l - TABLE_00_01_MIN];
+            if (TABLE_00_01_MIN <= unicode_char_low && unicode_char_low <= TABLE_00_01_MAX) {
+                return table_00_01[unicode_char_low - TABLE_00_01_MIN];
             }
-            return '?';
+            break;
         case 0x03:
-            if (TABLE_03_MIN <= unicode_char_l && unicode_char_l <= TABLE_03_MAX) {
-                return table_03[unicode_char_l - TABLE_03_MIN];
+            if (TABLE_03_MIN <= unicode_char_low && unicode_char_low <= TABLE_03_MAX) {
+                return table_03[unicode_char_low - TABLE_03_MIN];
             }
-            return '?';
+            break;
         case 0x20:
         case 0x25:
-            if (TABLE_20_25_MIN <= unicode_char_l && unicode_char_l <= TABLE_20_25_MAX) {
-                return table_20_25[unicode_char_l - TABLE_20_25_MIN];
+            if (TABLE_20_25_MIN <= unicode_char_low && unicode_char_low <= TABLE_20_25_MAX) {
+                return table_20_25[unicode_char_low - TABLE_20_25_MIN];
             }
-            return '?';
+            break;
         case 0x22:
         case 0x23:
-            if (TABLE_22_23_MIN <= unicode_char_l && unicode_char_l <= TABLE_22_23_MAX) {
-                return table_22_23[unicode_char_l - TABLE_22_23_MIN];
+            if (TABLE_22_23_MIN <= unicode_char_low && unicode_char_low <= TABLE_22_23_MAX) {
+                return table_22_23[unicode_char_low - TABLE_22_23_MIN];
             }
             [[fallthrough]];
         default:
             return '?';
     }
+    return '?';
 }
 
-uint16_t get_unicode(uint8_t* source, uint16_t& i) {
+/*!
+ * \brief Convert a UTF-8 encoded character to a Unicode code point
+ * 
+ * \param source The UTF-8 buffer
+ * \param i The index of the leader byte for the current character
+ * \return The Unicode code point 
+ */
+uint16_t utf8_to_unicode(uint8_t* source, uint16_t& i) {
     uint8_t leader = source[i++];
     if (leader < 0b10000000) {        // 0xxxxxxx; One byte
         return leader;
@@ -124,8 +151,15 @@ uint16_t get_unicode(uint8_t* source, uint16_t& i) {
     }
 }
 
-void translate_utf8_to_cp437(char* source, char* destination, uint8_t destination_limit) {
-    for (uint16_t src_i = 0, dest_i = 0; src_i < strlen(source) && dest_i < destination_limit;) {
-        destination[dest_i++] = (char)get_CP437(get_unicode((uint8_t*)source, src_i));
+/*!
+ * \brief Convert UTF-8 encoded characters to CP437 characters
+ * 
+ * \param source The UTF-8 buffer
+ * \param destination The buffer to write the CP437 characters to
+ * \param destination_size The size of the destination buffer
+ */
+void translate_utf8_to_cp437(char* source, char* destination, uint8_t destination_size) {
+    for (uint16_t src_i = 0, dest_i = 0; src_i < strlen(source) && dest_i < destination_size;) {
+        destination[dest_i++] = (char)unicode_to_cp437(utf8_to_unicode((uint8_t*)source, src_i));
     }
 }
