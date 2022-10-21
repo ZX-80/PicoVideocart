@@ -23,6 +23,7 @@ inline uint16_t dc0 = 0x00;
 inline uint16_t dc1 = 0x00;
 inline uint16_t tmp;
 inline uint8_t io_address;
+inline uint16_t programmable_interrupt_vector = 0x0802; // TODO: create 3853/3870/3871 port
 
 /*! \brief Process ROMC instructions */
 __force_inline void execute_romc() { 
@@ -166,7 +167,8 @@ __force_inline void execute_romc() {
              * must move the contents of the data bus into the low order
              * byte of PC0.
              */
-            // TODO: ROMC 0x0F
+            write_dbus(programmable_interrupt_vector & 0xFF);
+            // write_dbus(programmable_interrupt_vector & 0xFF, 0x800);
             pc1 = pc0;
             pc0 = (pc0 & 0xff00) | dbus;
             break;
@@ -213,8 +215,10 @@ __force_inline void execute_romc() {
              * (so that it is no longer requesting CPU servicing and can respond
              * to another interrupt).
              */
-            // TODO: ROMC 0x13
+            write_dbus(programmable_interrupt_vector >> 8);
+            // write_dbus(programmable_interrupt_vector >> 8, 0x800);
             pc0 = (pc0 & 0x00ff) | (dbus << 8);
+            reset_interrupt_request();
             break;
         case 0x14:
             /*
@@ -277,7 +281,8 @@ __force_inline void execute_romc() {
              * back onto the data bus).
              */
             if (IOPorts[io_address] != nullptr) {
-                write_dbus(IOPorts[io_address]->read(), 0x800);
+                write_dbus(IOPorts[io_address]->read());
+                // write_dbus(IOPorts[io_address]->read(), 0x800);
             }
             break;
         case 0x1C:

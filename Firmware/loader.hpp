@@ -17,6 +17,7 @@
 #include "chips.hpp"
 #include "error.hpp"
 #include "ports.hpp"
+#include "hardware.hpp"
 
 #include <SPI.h>
 #include <SD.h>
@@ -32,7 +33,7 @@ struct __attribute__((packed)) chf_header {
     uint16_t _reserved_1;
     uint32_t _reserved_2;
     uint8_t title_length;
-    char title[257];
+    char title[256];
 };
 
 struct __attribute__((packed)) chip_header {
@@ -52,7 +53,7 @@ struct __attribute__((packed)) chip_header {
  */
 void get_chf_header(File& file, chf_header& header) {
     file.read((uint8_t*) &header, sizeof(chf_header) - sizeof(((chf_header){0}).title));
-    file.read((uint8_t*) &header.title, header.title_length + 1);
+    file.read((uint8_t*) &header.title, header.title_length);
     file.seek(header.header_length, SeekSet); // Skip padding
 }
 
@@ -66,6 +67,12 @@ void read_chf_file(File &file) {
     // Read header
     chf_header header;
     get_chf_header(file, header);
+
+    // Set ports according to hardware type
+    size_t hardware_types_length = sizeof(HardwareTypes) / sizeof(HardwareTypes[0]);
+    if (header.hardware_type < hardware_types_length) {
+        HardwareTypes[header.hardware_type]->initialize_ports(IOPorts);
+    }
 
     // Read chip packets
     chip_header ch;
@@ -123,48 +130,38 @@ uint32_t get_filetype(File& file) {
  * 
  * \param file The file to load
  */
-void __not_in_flash_func(load_game)(File &file) {   // FIXME: Refactor to use get_filetype
-    for (uint16_t i = 0; i <= 0xFF; i++) { // Unload IOPorts
+void __not_in_flash_func(load_game)(File &file) {
+    // Unload IO ports
+    for (uint16_t i = 0; i <= 0xFF; i++) {
        delete IOPorts[i];
        IOPorts[i] = nullptr;
     }
 
-    // Clear program memory/attribute
+    // Clear program memory/attributes
     memset(program_attribute, RESERVED_CT::id, 0x10000);
     memset(program_rom, 0xFF, 0x10000);
-    
 
+    // Initialize memory/ports from file
     if (file) {
-        uint8_t magic_buffer[17] = {0};
-        file.read((uint8_t*) magic_buffer, 1); // Read up to 1 byte into magic_buffer
-        if (magic_buffer[0] == 0x55) {         // .bin file
-
-            // Assume hardware type 2 (ROM+RAM) with 2K of RAM at 0x2800
-            if (file.size() > 0) {
-                memset(program_attribute + 0x801, ROM_CT::id, min(file.size(), 0xF7FF)-1);
-            }
-            memset(program_rom + 0x2800, 0, 0x800); // Clear RAM
-            memset(program_attribute + 0x2800, RAM_CT::id, 0x800);
-
-            // Assume 2012 SRAM on ports $20/$21/$24/$25
-            IOPorts[0x20] = new Sram2102(0);
-            IOPorts[0x21] = new Sram2102(1);
-            IOPorts[0x24] = new Sram2102(0);
-            IOPorts[0x25] = new Sram2102(1);
-            IOPorts[0xFF] = new Launcher(file_data);
-
-            // Read up to 62K into program_rom
-            file.seek(0, SeekSet);
-            file.read((uint8_t*) (program_rom + 0x800), min(file.size(), 0xF7FF)); // Read up to 62K into program_rom
-
-            // sleep_ms(100);
-        } else if (magic_buffer[0] == 'C' && file.size() >= 64) {        // Possible .chf file
-            file.seek(0, SeekSet);
-            file.read((uint8_t*) magic_buffer, 16);                      // Read 16 bytes into magic_buffer
-            if (strcmp((char*) magic_buffer, "CHANNEL F       ") == 0) { // .chf file
-                file.seek(0, SeekSet);
+        switch (get_filetype(file)) {
+            case 'chf':
                 read_chf_file(file);
-            }
+                break;
+            case 'bin':
+                // Assume 2012 SRAM on ports $20/$21/$24/$25
+                HardwareTypes[FLASHCART_HT::id]->initialize_ports(IOPorts);
+
+                // Read up to 62K into program_rom
+                file.seek(0, SeekSet);
+                file.read((uint8_t*) (program_rom + 0x800), min(file.size(), 0xF7FF)); // Read up to 62K into program_rom
+
+                // Assume hardware type 2 (ROM+RAM) with 2K of RAM at 0x2800
+                if (file.size() > 0) {
+                    memset(program_attribute + 0x801, ROM_CT::id, min(file.size(), 0xF7FF)-1);
+                }
+                memset(program_rom + 0x2800, 0, 0x800); // Clear RAM
+                memset(program_attribute + 0x2800, RAM_CT::id, 0x800);
+                // sleep_ms(100);
         }
         file.close();
     } else {
@@ -190,7 +187,6 @@ void get_program_title(File& file, char* dest_title) {
         case 'chf':
             chf_header header;
             get_chf_header(file, header);
-            file.seek(0, SeekSet);   // FIXME: remove
             translate_utf8_to_cp437(header.title, dest_title, FILENAME_LIMIT);
             break;
         case 'bin':

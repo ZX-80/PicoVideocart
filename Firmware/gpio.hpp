@@ -51,6 +51,8 @@
 
 #pragma once
 
+#include <hardware/gpio.h>
+
 // Core 1 pins
 inline constexpr uint8_t WRITE_PIN = 17;
 inline constexpr uint8_t PHI_PIN = 26;
@@ -97,14 +99,25 @@ __force_inline uint8_t read_dbus() {
  * \param value The byte to write
  * \param addr_source The address being targeted
  */
+__force_inline void write_dbus(uint8_t value) {
+    dbus = value;
+    gpio_put(DBUS_IN_CE_PIN, true);              // Disable input buffer
+    gpio_clr_mask(0xFF << DBUS0_PIN);            // Write to DBUS
+    gpio_set_mask(dbus << DBUS0_PIN);
+    gpio_set_dir_out_masked(0xFF << DBUS0_PIN);  // Set DBUS to output mode
+    gpio_put(DBUS_OUT_CE_PIN, false);            // Enable output buffer
+}
+
 __force_inline void write_dbus(uint8_t value, uint16_t addr_source) {
-    if (addr_source >= 0x800) {
-        dbus = value;
-        gpio_put(DBUS_IN_CE_PIN, true);              // Disable input buffer
-        gpio_clr_mask(0xFF << DBUS0_PIN);            // Write to DBUS
-        gpio_set_mask(dbus << DBUS0_PIN);
-        gpio_set_dir_out_masked(0xFF << DBUS0_PIN);  // Set DBUS to output mode
-        gpio_put(DBUS_OUT_CE_PIN, false);            // Enable output buffer
+    if (program_attribute[addr_source] != RESERVED_CT::id) {  // since addr_source < 0x800 are always reserved
+    // if (addr_source >= 0x800) {
+        // dbus = value;
+        // gpio_put(DBUS_IN_CE_PIN, true);              // Disable input buffer
+        // gpio_clr_mask(0xFF << DBUS0_PIN);            // Write to DBUS
+        // gpio_set_mask(dbus << DBUS0_PIN);
+        // gpio_set_dir_out_masked(0xFF << DBUS0_PIN);  // Set DBUS to output mode
+        // gpio_put(DBUS_OUT_CE_PIN, false);            // Enable output buffer
+        write_dbus(value);
     }
 }
 
@@ -115,6 +128,23 @@ inline constexpr uint8_t RECEIVE_PIN = 0;             // MISO
 inline constexpr uint8_t SD_CARD_CHIP_SELECT_PIN = 5;
 inline constexpr uint8_t FRAM_CHIP_SELECT_PIN = 1;
 inline constexpr uint8_t WRITE_PROTECT_PIN = 4;
+inline constexpr uint8_t INTRQ_PIN = 16;
 
 // Core 0 variables
 bool old_write_protect = false;
+
+// Core 0 functions
+
+/*!
+ * \brief Set INTRQ high
+ */
+__force_inline void trigger_interrupt_request() {
+    gpio_put(INTRQ_PIN, true);
+}
+
+/*!
+ * \brief Set INTRQ low
+ */
+__force_inline void reset_interrupt_request() {
+    gpio_put(INTRQ_PIN, false);
+}

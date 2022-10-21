@@ -91,8 +91,12 @@ class RESERVED_CT : public ChipType {
         void write(uint16_t address, uint8_t data) {}
         bool has_data() {return false;}
 };
-// ChipType* ChipTypes[] = {new ROM_CT(), new RAM_CT(), new LED_CT(), new NVRAM_CT()};
-inline ChipType* ChipTypes[256];
+inline ChipType* ChipTypes[] = {
+    new ROM_CT(),
+    new RAM_CT(),
+    new LED_CT(),
+    new NVRAM_CT()
+};
 
 // Program ROM functions
 

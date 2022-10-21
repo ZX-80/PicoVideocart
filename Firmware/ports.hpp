@@ -37,8 +37,11 @@
 #include "default_rom.hpp"
 #include "file_cache.hpp"
 
+namespace FIFO_COMMAND {
+    inline constexpr uint8_t LAUNCH_PROGRAM = 1;
+}
+
 inline constexpr uint16_t SRAM_START_ADDR = 0x2800;
-inline bool load_new_game_trigger = false;
 
 /*! \brief Abstract base class for ports 
  * 
@@ -182,7 +185,7 @@ class Launcher : public IOPort {
                             break;
                         case SELECT_FLAG:
                             if (file_data[file_index].isFile) {
-                                load_new_game_trigger = true; // FIXME: talk to core 0 through the stack instead
+                                rp2040.fifo.push_nb(FIFO_COMMAND::LAUNCH_PROGRAM); // Push command to core 0
                             }
                             break;
                         case NONE_FLAG:

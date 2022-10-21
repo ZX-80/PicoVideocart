@@ -9,18 +9,19 @@
  * 
  * ### Limitations
  * 
- * To save space in both program_attribute and ChipTypes, chip_type is assumed to be an 8-bit value.
- * This shouldn't be a problem until there are more than 256 chip types defined in the standard.
+ * To save space in program_attribute, chip type is assumed to be 8-bit
+ * value. This shouldn't be a problem until there are more than 256 chip 
+ * types defined in the standard.
  */
 
 // TODO: Disconnecting when loading
-// TODO: Minor menu work (remove ".bin", use .chf title, reload menu when holding reset, etc.) 
-// TODO: Special char support 
-// TODO: set ports according to hardware type
+// TODO: reload menu when holding reset
 // TODO: Directories
-// TODO: Double reset issue
-// TODO: Cache(?) issue
-// TODO: hangman issue
+// TODO: refactor core commands
+// BUG: Double reset issue
+// BUG: hangman issue
+// BUG: timing(PIO/DMA)
+// BUG: Cache(?) issue
 
 #include "loader.hpp"
 #include "romc.hpp"
@@ -28,15 +29,11 @@
 #include <SPI.h>
 #include <SD.h>
 
-#include <pico/sem.h>
-#include <pico/stdlib.h>               // Overclocking functions
-#include <pico/multicore.h>            // Allow code to be run on both cores
-#include <hardware/gpio.h>
-#include <hardware/vreg.h>             // Voltage control for overclocking
-#include <hardware/structs/sio.h>
-#include <hardware/structs/iobank0.h>
-#include <hardware/structs/xip_ctrl.h>
-#include <hardware/structs/bus_ctrl.h>
+#include <pico/stdlib.h>                 // Overclocking functions
+#include <pico/multicore.h>              // Allow code to be run on both cores
+#include <hardware/vreg.h>               // Voltage control for overclocking
+#include <hardware/structs/xip_ctrl.h>   // Cache functions
+#include <hardware/structs/bus_ctrl.h>   // Allow setting bus priority
 
 void setup1() { // Core 1
     // Set Core 1 priority to high
@@ -109,18 +106,18 @@ void setup() { // Core 0
     gpio_init_val(WRITE_PROTECT_PIN, GPIO_IN, false);
     gpio_pull_up(WRITE_PROTECT_PIN);
     gpio_init_val(FRAM_CHIP_SELECT_PIN, GPIO_OUT, true);
+    
+    // Setup interrupt pin
+    gpio_init_val(INTRQ_PIN, GPIO_OUT, false);
+    
+    // Disconnect memory
+    memset(program_attribute, RESERVED_CT::id, 0x10000);
 
     // Load the game
     // TODO: fall back to 25, then 4 if it doesn't work (but only if there's an SD inserted)
     while (!SD.begin(SD_CARD_CHIP_SELECT_PIN, SD_SCK_MHZ(50))) { // wait for SD card
         sleep_ms(250);
     }
-    
-    // Initialize chip types
-    ChipTypes[ROM_CT::id] = new ROM_CT();
-    ChipTypes[RAM_CT::id] = new RAM_CT();
-    ChipTypes[LED_CT::id] = new LED_CT();
-    ChipTypes[NVRAM_CT::id] = new NVRAM_CT();
 
     File romFile = SD.open("boot.bin");
     load_game(romFile);
@@ -137,6 +134,7 @@ void setup() { // Core 0
     DIR_LIMIT = file_counter;
 };
 
+uint32_t fifo_command;
 void __not_in_flash_func(loop)() { // Core 0
     // Re-run setup if SD card inserted
     // FIXME: make a SD_DETECT function in gpio.hpp
@@ -152,22 +150,28 @@ void __not_in_flash_func(loop)() { // Core 0
         old_write_protect = gpio_get(WRITE_PROTECT_PIN);
     }
 
-    if (load_new_game_trigger) {
-        load_new_game_trigger = false;
-        while (pc0 >= 0x800) {
-            ; // We need to wait until the menu has jumped to 0 before disconnecting
-        }
-        // sleep_ms(100);
+    // Receive command from core 1
+    if (rp2040.fifo.pop_nb(&fifo_command)) {
+        switch (fifo_command) {
+            case FIFO_COMMAND::LAUNCH_PROGRAM:
+                while (pc0 >= 0x800) { // We need to wait until the menu has jumped to 0 before disconnecting
+                    tight_loop_contents();
+                }
+                memset(program_attribute, RESERVED_CT::id, 0x10000);
+                sleep_ms(5000);
 
-        // Get file from index
-        File romFile;
-        File dir = SD.open("/");
-        dir.rewindDirectory();
-        uint16_t file_index = static_cast<Launcher*>(IOPorts[0xFF])->file_index;
-        for (uint32_t i = 0; i <= file_index; i++) {
-            romFile = dir.openNextFile();
+                // Get file from index
+                File romFile;
+                File dir = SD.open("/");
+                dir.rewindDirectory();
+                uint16_t file_index = static_cast<Launcher*>(IOPorts[0xFF])->file_index;
+                for (uint32_t i = 0; i <= file_index; i++) {
+                    romFile = dir.openNextFile();
+                }
+                load_game(romFile);
+                program_attribute[0x800] = ROM_CT::id;
+                sleep_ms(4000);
+                trigger_interrupt_request();
         }
-        load_game(romFile);
-        program_attribute[0x800] = ROM_CT::id;
     }
 };
