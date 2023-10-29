@@ -7,19 +7,19 @@ The flashcart is essentially an emulator for an enhanced 3853 Static Memory Inte
 [Revision 3A](#revision-3a) •
 [Revision 2A](#revision-2a) •
 [Revision 1A](#revision-1a) •
-[3D Case](#3d-case)
+[Videocart Case](#videocart-case)
   
 </div>
 
-## Revision 3A
-
 This is the current PCB revision. 
+
+## Revision 3A
 
 The following major changes were made:
 
 - All DIP componants were replaced with SMT parts
 - The Raspberry Pi Pico was replaced with the faster Teensy 4.0
-- 5V to 3.3V level shifters were replaced with thier bus hold variants
+- 5V to 3.3V level shifters were replaced with their bus hold variants
 - ICs were moved higher and to a single side up to avoid interfereing with the connector slot
 - An LED was added to the board, as the internal one can't be used with SPI
 
