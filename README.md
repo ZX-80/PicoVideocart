@@ -27,15 +27,13 @@ This [flash Videocart](https://en.wikipedia.org/wiki/Flash_cartridge), powered b
 
 - The first thing you should do is update to the latest firmware:
   - Download the firmware file from [here](https://github.com/ZX-80/PicoVideocart/releases/latest/download/videocart_firmware.hex)
-  - Put it on an SD card, and insert the SD card into the Flashcart
+  - Put it on the SD card, or upload it via USB
   - Power up the Flashcart, and it will install the new firmware
   - When it's done, the LED will blink
 
 > [!WARNING] 
-> Do not power down the device while it's updating. If you do, it may corrupt the firmware. If this happens, you must use the Teensy loader to upload
+> Do not power down the device while it's updating. If you do, it may corrupt the firmware. If this happens, you must use the [Teensy loader](https://www.pjrc.com/teensy/loader.html) to upload
 > the firmware file instead.
->
-> https://www.pjrc.com/teensy/loader.html
 
 **Loading Games to the Flashcart**
 

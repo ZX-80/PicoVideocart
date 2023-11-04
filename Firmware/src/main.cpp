@@ -14,6 +14,16 @@
  * types defined in the standard.
  */
 
+// TODO: Integrate FlasherX:   https://github.com/joepasquariello/FlasherX
+// TODO: Integrate MTP_Teensy: https://github.com/KurtE/MTP_Teensy/tree/main
+// TODO: SD card (load bin, load chf, write protect, card detect, dma, multi-menu)
+// TODO: FRAM (chf can map it to memory. It will be written back to the game file on SD (dirty bit). DMA)
+// TODO: Threads?: https://github.com/ftrias/TeensyThreads
+// TODO: Development features
+// TODO: IO Ports (Stack, music/arm co-processor, rng, MK3870, 3853)
+// TODO: multimenu (multiple files on screen, launch game without reset)
+// NOTE: Could a CPLD help?
+
 #include <Arduino.h>
 
 #include "romc.hpp"
@@ -49,8 +59,6 @@ void setup() {
     pinMode(CHANNEL_F_BUS_PRESENCE, INPUT);
  
     // Initialize LEDs
-    pinMode(LED_BUILTIN, OUTPUT);
-    digitalWriteFast(LED_BUILTIN, HIGH);
     pinMode(LED_BOARD, OUTPUT);
     digitalWriteFast(LED_BOARD, HIGH);
 
@@ -59,20 +67,23 @@ void setup() {
     // Teensy 4.0: default 600MHz, max 1008 MHz (active cooling needed)
     // 528MHz may be ideal to increase lifespan according to: https://forum.pjrc.com/attachment.php?attachmentid=23160&d=1610141979
     // tempmonGetTemp() -> read internal temperature for testing
+
+    memset(program_attribute, RESERVED_CT::id, 0x800); // FIXME: temporary fix until loader code is added
 }
 
+// NOTE: Moving loop to ISR triggered by WRITE_PIN rising edge could free up the CPU when nothing's happening
+
 void loop() {
-    while (!digitalReadFast(CHANNEL_F_BUS_PRESENCE)) {
-        while(digitalReadFast(WRITE_PIN));
 
-        // Falling edge
-        dbus_mode(INPUT); // set dbus to input mode
-            
+    // while (!digitalReadFast(CHANNEL_F_BUS_PRESENCE)) {
+        // Wait for rising edge
         while(!digitalReadFast(WRITE_PIN)); 
-
-        // Rising edge
         dbus = read_dbus();
         romc = read_romc();
         execute_romc();      // May set dbus to output mode
-    }
+
+        // Wait for falling edge
+        while(digitalReadFast(WRITE_PIN));
+        dbus_mode(INPUT); // set dbus to input mode
+    // }
 }

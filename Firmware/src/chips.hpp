@@ -27,7 +27,7 @@ class ChipType {
 /*! \brief Read-only memory */
 class ROM_CT : public ChipType {
     public:
-        static constexpr uint16_t id = 0;
+        static constexpr uint16_t id = 1;  // FIXME: temporary fix until loader code is added
         ROM_CT() = default;
         uint8_t read(uint16_t address) {
             return program_rom[address];
@@ -41,7 +41,7 @@ class ROM_CT : public ChipType {
 /*! \brief Read/Write memory */
 class RAM_CT : public ChipType {
     public:
-        static constexpr uint16_t id = 1;
+        static constexpr uint16_t id = 0;  // FIXME: temporary fix until loader code is added
         RAM_CT() = default;
         uint8_t read(uint16_t address) {
             return program_rom[address];

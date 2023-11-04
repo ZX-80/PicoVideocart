@@ -33,9 +33,9 @@
  *    EMC_08   4.8           RW     GP5 - |                | - GP20    DBUS 6              1.26   AD_B1_10
  *     B0_10   2.10       ROMC4     GP6 - |                | - GP19    DBUS Direction      1.16   AD_B1_00
  *     B1_01   2.17       ROMC3     GP7 - |                | - GP18    Interrupt Request   1.17   AD_B1_01
- *     B1_00   2.16       ROMC2     GP8 - |   Raspberry    | - GP17    DBUS 2              1.22   AD_B1_06
- *     B0_11   2.11       ROMC1     GP9 - |       Pi       | - GP16    DBUS 3              1.23   AD_B1_07
- *     B0_00   2.0        ROMC0    GP10 - |      Pico      | - GP15    DBUS 1              1.19   AD_B1_03
+ *     B1_00   2.16       ROMC2     GP8 - |     Teensy     | - GP17    DBUS 2              1.22   AD_B1_06
+ *     B0_11   2.11       ROMC1     GP9 - |       4.0      | - GP16    DBUS 3              1.23   AD_B1_07
+ *     B0_00   2.0        ROMC0    GP10 - |                | - GP15    DBUS 1              1.19   AD_B1_03
  *     B0_02   2.2         MOSI    GP11 - |                | - GP14    DBUS 0              1.18   AD_B1_02
  *     B0_01   2.1         MISO    GP12 - |_--_--_--_--_--_| - GP13    SCK/LED             2.3    B0_03
  *                                 VBUS ____/  /   |  \  \____ On/Off
@@ -72,16 +72,16 @@ inline constexpr uint8_t DBUS7_PIN = 21;
 
 // Command bus (Port 2: xxxxxxxxxxxxxx12xxxx30xxxxxxxxx4)
 inline constexpr uint32_t ROMC_PINS_BITMASK = 0x30C01;
-inline constexpr uint8_t ROMC0_PIN = 10;
-inline constexpr uint8_t ROMC1_PIN = 6;
-inline constexpr uint8_t ROMC2_PIN = 9;
-inline constexpr uint8_t ROMC3_PIN = 8;
-inline constexpr uint8_t ROMC4_PIN = 7;
+inline constexpr uint8_t ROMC4_PIN = 10;
+inline constexpr uint8_t ROMC3_PIN = 9;
+inline constexpr uint8_t ROMC2_PIN = 8;
+inline constexpr uint8_t ROMC1_PIN = 7;
+inline constexpr uint8_t ROMC0_PIN = 6;
 inline constexpr uint8_t WRITE_PIN = 5;
 inline constexpr uint8_t PHI_PIN = 4;
 
 // Other Pins
-inline constexpr uint8_t LED_BOARD = 25;
+inline constexpr uint8_t LED_BOARD = 31;
 inline constexpr uint8_t CHANNEL_F_BUS_PRESENCE = 24; // Active low
 inline constexpr uint8_t INTRQ_PIN = 18;              // Active low
 
@@ -115,9 +115,11 @@ __always_inline void dbus_mode(uint8_t mode) {
         case OUTPUT:
             digitalWriteFast(DBUS_MODE_PIN, HIGH);
             gpio_set_dir_out_masked(IMXRT_GPIO6, DBUS_PINS_BITMASK);
+            break;
         case INPUT:
             gpio_set_dir_in_masked(IMXRT_GPIO6, DBUS_PINS_BITMASK);
             digitalWriteFast(DBUS_MODE_PIN, LOW);
+            break;
     }
 }
 
@@ -136,11 +138,11 @@ __always_inline uint8_t read_dbus() {
  * 
  * \param value The byte to write
  */
-__always_inline void write_dbus(uint8_t value) {
-    dbus = value;
-    asm volatile("bfi %0, %1, 18, 2" : "+r"(GPIO6_DR) : "r"(dbus));      // GPIO6 = xxxxxxxxxxxx10xxxxxxxxxxxxxxxxxx| 1 cycle
-    asm volatile("bfi %0, %1, 22, 6" : "+r"(GPIO6_DR) : "r"(dbus >> 2)); // GPIO6 = xxxx765432xx10xxxxxxxxxxxxxxxxxx| 1 cycle
-    dbus_mode(OUTPUT);                                                   // Enable output buffer                    | 2 cycles
+__always_inline void write_dbus(uint16_t value) {
+    dbus = value;                                                      // dbus  =                         76543210|
+    asm volatile("bfi %0, %0, 2, 8" : "+r"(value));                    // value = ----------------xxxxxx7654321010| 1 cycle
+    asm volatile("bfi %0, %1, 18, 10" : "+r"(GPIO6_DR) : "r"(value));  // GPIO6 = xxxx7654321010xxxxxxxxxxxxxxxxxx| 1 cycle
+    dbus_mode(OUTPUT);                                                 // Enable output buffer                    | 2 cycles
 }
 
 /*! \brief Put a value on the data bus
